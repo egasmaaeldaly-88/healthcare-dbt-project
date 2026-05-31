@@ -9,7 +9,26 @@ from databricks import sql
 from datetime import datetime, timezone
 import uuid
 import os
-from databricks.sdk.runtime import dbutils  # only if running in Databricks
+import streamlit as st
+
+# نحاول استيراد dbutils، إذا فشل (محلياً)، نستخدم نسخة وهمية أو نتخطاها
+try:
+    from databricks.sdk.runtime import dbutils
+    # إذا نجح الاستيراد، نحن داخل Databricks
+    is_databricks = True
+except ImportError:
+    # إذا فشل، نحن نعمل محلياً
+    is_databricks = False
+    dbutils = None
+
+# لاحقاً في الكود، استخدمي المتغير للتحقق
+if is_databricks:
+    # استخدمي dbutils هنا إذا لزم الأمر
+    pass
+else:
+    # الكود الخاص بالعمل المحلي
+    st.warning("أنتِ تعملين في وضع محلي، بعض خصائص Databricks غير متاحة.")
+
 # ── Warm up warehouse connection at app start ──────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def warm_up_connection():
