@@ -5,3 +5,13 @@ command:
   - "--server.address=0.0.0.0"
   - "--server.headless=true"
   - "--browser.gatherUsageStats=false"
+
+env:
+  - name: DATABRICKS_HTTP_PATH
+    value: "/sql/1.0/warehouses/8e6939a00b090311"
+
+  - name: PATIENT_PASSWORD
+    value: "123"
+
+  - name: DOCTOR_PASSWORD
+    value: "456"
