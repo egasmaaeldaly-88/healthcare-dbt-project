@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import uuid
 import os
 from databricks.sdk.runtime import dbutils  # only if running in Databricks
+port = int(os.environ.get("STREAMLIT_SERVER_PORT", 8501))
 
 from utils.ingestion_utils import (
     validate_national_id,
