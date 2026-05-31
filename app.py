@@ -27,7 +27,7 @@ if is_databricks:
     pass
 else:
     # الكود الخاص بالعمل المحلي
-    st.warning("أنتِ تعملين في وضع محلي، بعض خصائص Databricks غير متاحة.")
+    st.warning(" Databricks is not available We are working locally ")
 
 # ── Warm up warehouse connection at app start ──────────────────────────────────
 @st.cache_resource(show_spinner=False)
@@ -102,17 +102,43 @@ def get_connection():
 
     return sql.connect(**connect_args)
 # ── Cached queries ─────────────────────────────────────────────────────────────
-@st.cache_data(ttl=300, show_spinner="Fetching dashboard data…")
+@st.cache_data(ttl=300, show_spinner=False)
 def load_doctor_dashboard() -> pd.DataFrame:
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM healthcare_platform.vw_doctor_dashboard"
-            )
-            return pd.DataFrame(
-                cur.fetchall(),
-                columns=[d[0] for d in cur.description]
-            )
+    """
+    Fetches the doctor dashboard data from the database.
+    Includes error handling to identify connectivity issues.
+    """
+    try:
+        # Establish connection using the custom connection utility
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                # Execute the query for the doctor dashboard view
+                cur.execute("SELECT * FROM healthcare_platform.vw_doctor_dashboard")
+                
+                # Fetch results and get column names
+                data = cur.fetchall()
+                columns = [d[0] for d in cur.description]
+                
+                # Return data as a pandas DataFrame
+                return pd.DataFrame(data, columns=columns)
+                
+    except Exception as e:
+        # Log the error to the console for debugging
+        print(f"DEBUG ERROR: Failed to fetch dashboard data: {e}")
+        # Show a user-friendly error message in the Streamlit UI
+        st.error(f"❌ Could not load dashboard data: {e}")
+        # Return an empty DataFrame to prevent app crash
+        return pd.DataFrame()
+
+# Usage in app.py
+with st.spinner("Fetching dashboard data…"):
+    df = load_doctor_dashboard()
+    
+# Display data if successfully loaded
+if not df.empty:
+    st.dataframe(df)
+else:
+    st.warning("No data available or connection issue occurred.")
 
 @st.cache_data(ttl=300, show_spinner="Loading vitals…")
 def load_vitals_timeseries(patient_id: str | None = None) -> pd.DataFrame:
