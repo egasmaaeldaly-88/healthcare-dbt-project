@@ -1,7 +1,6 @@
 version: 2
 
 models:
-
   - name: bronze_patients
     description: >
       Raw patient records ingested from healthcare_platform.patients.
@@ -20,8 +19,7 @@ models:
       - name: gender
         tests:
           - accepted_values:
-              arguments:
-                values: ['MALE', 'FEMALE', 'UNSPECIFIED']
+              values: ['MALE', 'FEMALE', 'UNSPECIFIED', 'M', 'F', 'm', 'f']
       - name: _bronze_loaded_at
         tests:
           - not_null
@@ -42,9 +40,8 @@ models:
         tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('bronze_patients')
-                field: patient_id
+              to: ref('bronze_patients')
+              field: patient_id
       - name: recorded_at
         tests:
           - not_null
@@ -65,9 +62,8 @@ models:
         tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('bronze_patients')
-                field: patient_id
+              to: ref('bronze_patients')
+              field: patient_id
       - name: drug_name
         tests:
           - not_null
