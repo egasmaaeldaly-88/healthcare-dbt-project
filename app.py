@@ -10,6 +10,23 @@ from datetime import datetime, timezone
 import uuid
 import os
 from databricks.sdk.runtime import dbutils  # only if running in Databricks
+# ── Warm up warehouse connection at app start ──────────────────────────────────
+@st.cache_resource(show_spinner=False)
+def warm_up_connection():
+    """
+    Runs once when the app starts.
+    Wakes up the SQL Warehouse so user queries are instant.
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+        return True
+    except Exception:
+        return False
+
+# Call at startup — cached so it only runs once per app session
+_warmed_up = warm_up_connection()
 port = int(os.environ.get("STREAMLIT_SERVER_PORT", 8501))
 
 from utils.ingestion_utils import (
@@ -37,31 +54,30 @@ st.set_page_config(
 
 
 def get_connection():
-    """
-    Connects to the SQL Warehouse using Databricks native environment.
-    Works both in Databricks Apps (cloud) and locally (secrets.toml).
-    Falls back gracefully between the two environments.
-    """
-    # ── Cloud path: Databricks Apps injects these automatically ───────────────
+    from databricks import sql
+    import os
+
     host      = os.environ.get("DATABRICKS_HOST")
     http_path = os.environ.get("DATABRICKS_HTTP_PATH")
     token     = os.environ.get("DATABRICKS_TOKEN")
 
-    # ── Local fallback: use st.secrets when running locally ───────────────────
     if not host or not http_path:
-        import streamlit as st
-        host      = st.secrets["databricks"]["server_hostname"]
-        http_path = st.secrets["databricks"]["http_path"]
-        token     = st.secrets["databricks"]["access_token"]
+        try:
+            import streamlit as st
+            host      = st.secrets["databricks"]["server_hostname"]
+            http_path = st.secrets["databricks"]["http_path"]
+            token     = st.secrets["databricks"]["access_token"]
+        except Exception:
+            raise RuntimeError(
+                "Set DATABRICKS_HOST and DATABRICKS_HTTP_PATH "
+                "in environment variables."
+            )
 
-    # ── Build connection args ──────────────────────────────────────────────────
     connect_args = {
         "server_hostname": host,
         "http_path":       http_path,
+        "_socket_timeout": 15,       # ← timeout in seconds
     }
-
-    # Token is optional in Databricks Apps — OAuth is used automatically
-    # Only pass token if explicitly available (local dev)
     if token:
         connect_args["access_token"] = token
 
@@ -97,15 +113,25 @@ def load_vitals_timeseries(patient_id: str | None = None) -> pd.DataFrame:
                 columns=[d[0] for d in cur.description]
             )
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30, show_spinner=False)
 def patient_exists(patient_id: str) -> bool:
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"""
-                SELECT 1 FROM healthcare_platform.patients
-                WHERE patient_id = '{patient_id}' LIMIT 1
-            """)
-            return cur.fetchone() is not None
+    """
+    Fast existence check — returns True/False within seconds.
+    Uses COUNT which is optimised on Delta tables.
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    SELECT COUNT(1) AS n
+                    FROM healthcare_platform.patients
+                    WHERE patient_id = '{patient_id}'
+                """)
+                result = cur.fetchone()
+                return result[0] > 0
+    except Exception as e:
+        st.error(f"Connection error: {e}")
+        return False
 
 def insert_vitals(patient_id: str, vitals: dict) -> bool:
     try:
@@ -382,10 +408,12 @@ if st.session_state.role == "patient":
                 for err in errors:
                     st.error(err)
             else:
-                with st.spinner("Checking for existing registration…"):
-                    already_exists = patient_exists(
-                        reg_national_id.strip()
-                    )
+                # ── Show warehouse wake-up warning ─────────────────────────────────────
+                with st.spinner(
+                    "Connecting to database… "
+                    "This may take up to 30 seconds if the warehouse is sleeping."
+                ):
+                    already_exists = patient_exists(reg_national_id.strip())
 
                 if already_exists:
                     st.warning(
