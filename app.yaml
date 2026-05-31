@@ -1,6 +1,5 @@
 # app.yaml
-# Databricks Apps configuration file
-# Place in repo root alongside app.py
+# Must be in repo root alongside app.py
 
 command:
   - "streamlit"
@@ -10,26 +9,3 @@ command:
   - "--server.address=0.0.0.0"
   - "--server.headless=true"
   - "--browser.gatherUsageStats=false"
-
-env:
-  # Injected automatically by Databricks Apps runtime
-  - name: DATABRICKS_HOST
-    valueFrom: "host"
-
-  # Set this to your SQL Warehouse HTTP path
-  # Go to: SQL Warehouses → your warehouse → Connection Details
-  - name: DATABRICKS_HTTP_PATH
-    value: "/sql/1.0/warehouses/your_warehouse_id"
-
-  # Role access codes — set these as Databricks Secrets
-  - name: PATIENT_PASSWORD
-    valueFrom:
-      secretRef:
-        scope: "healthcare-scope"
-        key:   "patient-password"
-
-  - name: DOCTOR_PASSWORD
-    valueFrom:
-      secretRef:
-        scope: "healthcare-scope"
-        key:   "doctor-password"
