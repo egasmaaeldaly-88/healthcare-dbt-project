@@ -25,8 +25,7 @@ def get_connection():
             token     = st.secrets["databricks"]["access_token"]
         except Exception:
             raise RuntimeError(
-                "Missing DATABRICKS_HOST and DATABRICKS_HTTP_PATH. "
-                "Set them in app.yaml environment variables."
+                "Missing DATABRICKS_HOST and DATABRICKS_HTTP_PATH."
             )
 
     connect_args = {
@@ -86,6 +85,30 @@ def validate_national_id(value: str, length: int = 14) -> tuple[bool, str]:
     if len(value) != length:
         return False, f"National ID must be exactly {length} digits (got {len(value)})."
     return True, ""
+
+# utils/ingestion_utils.py
+
+def patient_exists(patient_id: str) -> bool:
+    """
+    تتحقق ما إذا كان المريض مسجلاً مسبقاً في قاعدة البيانات.
+    """
+    try:
+        # ملاحظة: إذا كنتِ قمتِ بتعريف get_db_connection (مع cache_resource)،
+        # استخدميها هنا لضمان السرعة.
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    SELECT COUNT(1) AS n
+                    FROM healthcare_platform.patients
+                    WHERE patient_id = '{patient_id}'
+                """)
+                row = cur.fetchone()
+                return row[0] > 0
+    except Exception as e:
+        # إظهار خطأ في واجهة Streamlit إذا فشل الاتصال
+        import streamlit as st
+        st.error(f"Connection error: {e}")
+        return False
 
 
 # ── CSV ingestion (Streamlit-side, pandas-based) ───────────────────────────────
@@ -285,16 +308,13 @@ def ingest_csv_streamlit(
 
 # ── Patient registration (single row insert) ───────────────────────────────────
 def register_patient(patient: dict) -> bool:
-    """
-    Inserts one patient row into healthcare_platform.patients.
-    Returns True on success.
-    """
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(f"""
-                INSERT INTO workspace.healthcare_platform.patients
-                    (patient_id, first_name, last_name, date_of_birth,
-                     gender, blood_type, contact_email, created_at)
+                INSERT INTO healthcare_platform.patients
+                    (patient_id, first_name, last_name,
+                     date_of_birth, gender, blood_type,
+                     contact_email, created_at)
                 VALUES (
                     '{patient["national_id"]}',
                     '{patient["first_name"].replace("'", "''")}',

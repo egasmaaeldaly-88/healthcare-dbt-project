@@ -407,12 +407,14 @@ if st.session_state.role == "patient":
                 for err in errors:
                     st.error(err)
             else:
-                # ── Show warehouse wake-up warning ─────────────────────────────────────
-                with st.spinner(
-                    "Connecting to database… "
-                    "This may take up to 30 seconds if the warehouse is sleeping."
-                ):
-                    already_exists = patient_exists(reg_national_id.strip())
+                with st.spinner("Checking registration…"):
+                    try:
+                        already_exists = patient_exists(
+                            reg_national_id.strip()
+                        )
+                    except Exception as e:
+                        st.error(f"Database error: {e}")
+                        st.stop()
 
                 if already_exists:
                     st.warning(
@@ -429,16 +431,13 @@ if st.session_state.role == "patient":
                         "blood_type":    reg_blood,
                         "contact_email": reg_email.strip(),
                     }
-                    with st.spinner("Registering patient…"):
+                    with st.spinner("Registering…"):
                         try:
                             register_patient(patient_data)
-                            patient_exists.clear()
                             st.success(
-                                f"✅ Patient **{reg_first_name} "
-                                f"{reg_last_name}** registered "
-                                f"successfully!\n\n"
-                                f"Your Patient ID is: "
-                                f"`{reg_national_id.strip()}`"
+                                f"✅ **{reg_first_name} {reg_last_name}** "
+                                f"registered successfully!\n\n"
+                                f"Patient ID: `{reg_national_id.strip()}`"
                             )
                             st.balloons()
                         except Exception as e:
