@@ -6,18 +6,28 @@ import os
 
 def get_connection():
     from databricks import sql
+    import os
+
     host      = os.environ.get("DATABRICKS_HOST")
     http_path = os.environ.get("DATABRICKS_HTTP_PATH")
     token     = os.environ.get("DATABRICKS_TOKEN")
 
     if not host or not http_path:
-        host      = st.secrets["databricks"]["server_hostname"]
-        http_path = st.secrets["databricks"]["http_path"]
-        token     = st.secrets["databricks"]["access_token"]
+        try:
+            import streamlit as st
+            host      = st.secrets["databricks"]["server_hostname"]
+            http_path = st.secrets["databricks"]["http_path"]
+            token     = st.secrets["databricks"]["access_token"]
+        except Exception:
+            raise RuntimeError(
+                "Missing DATABRICKS_HOST and DATABRICKS_HTTP_PATH. "
+                "Set them in app.yaml environment variables."
+            )
 
     connect_args = {
         "server_hostname": host,
         "http_path":       http_path,
+        "_socket_timeout": 30,
     }
     if token:
         connect_args["access_token"] = token

@@ -69,20 +69,19 @@ def get_connection():
             token     = st.secrets["databricks"]["access_token"]
         except Exception:
             raise RuntimeError(
-                "Set DATABRICKS_HOST and DATABRICKS_HTTP_PATH "
-                "in environment variables."
+                "Missing DATABRICKS_HOST and DATABRICKS_HTTP_PATH. "
+                "Set them in app.yaml environment variables."
             )
 
     connect_args = {
         "server_hostname": host,
         "http_path":       http_path,
-        "_socket_timeout": 15,       # ← timeout in seconds
+        "_socket_timeout": 30,
     }
     if token:
         connect_args["access_token"] = token
 
     return sql.connect(**connect_args)
-
 # ── Cached queries ─────────────────────────────────────────────────────────────
 @st.cache_data(ttl=300, show_spinner="Fetching dashboard data…")
 def load_doctor_dashboard() -> pd.DataFrame:
