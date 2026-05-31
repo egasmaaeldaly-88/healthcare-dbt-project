@@ -107,7 +107,7 @@ def load_doctor_dashboard() -> pd.DataFrame:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT * FROM healthcare_platform.vw_doctor_dashboard"
+                "SELECT * FROM workspace.default.vw_doctor_dashboard"
             )
             return pd.DataFrame(
                 cur.fetchall(),
@@ -142,7 +142,7 @@ def patient_exists(patient_id: str) -> bool:
             with conn.cursor() as cur:
                 cur.execute(f"""
                     SELECT COUNT(1) AS n
-                    FROM healthcare_platform.patients
+                    FROM workspace.healthcare_platform.patients
                     WHERE patient_id = '{patient_id}'
                 """)
                 result = cur.fetchone()
@@ -156,7 +156,7 @@ def insert_vitals(patient_id: str, vitals: dict) -> bool:
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(f"""
-                    INSERT INTO healthcare_platform.vitals
+                    INSERT INTO workspace.healthcare_platform.vitals
                         (vital_id, patient_id, recorded_at,
                          systolic_bp, diastolic_bp, heart_rate,
                          temperature_c, spo2_pct, weight_kg,
