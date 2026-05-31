@@ -1,0 +1,7 @@
+profiles.yml 
+dbt_packages/ 
+target/ 
+logs/ 
+.Ds_store/ 
+dbt_internal_packages/
+.streamlit/ 

@@ -1,0 +1,1 @@
+SELECT current_catalog() AS catalog_name, current_schema() AS schema_name

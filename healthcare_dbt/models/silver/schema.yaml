@@ -1,0 +1,125 @@
+version: 2
+
+models:
+
+  - name: silver_patients
+    description: >
+      Deduplicated, type-cast, and name-normalised patient records.
+      One row per patient_id. Age in years derived from date_of_birth.
+    columns:
+      - name: patient_id
+        tests:
+          - not_null
+          - unique
+      - name: full_name
+        tests:
+          - not_null
+      - name: age_years
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 130
+      - name: gender
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['M', 'F', 'UNSPECIFIED']
+      - name: _silver_loaded_at
+        tests:
+          - not_null
+
+  - name: silver_vitals
+    description: >
+      Validated vitals with physiologically impossible values clamped
+      to NULL. BP bounds enforced by custom test assert_bp_bounds.sql.
+    columns:
+      - name: vital_id
+        tests:
+          - not_null
+          - unique
+      - name: patient_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_patients')
+                field: patient_id
+      - name: recorded_at
+        tests:
+          - not_null
+      - name: systolic_bp
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 60
+                max_value: 250
+              config:
+                where: "systolic_bp IS NOT NULL"
+      - name: diastolic_bp
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 40
+                max_value: 150
+              config:
+                where: "diastolic_bp IS NOT NULL"
+      - name: heart_rate
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 30
+                max_value: 220
+              config:
+                where: "heart_rate IS NOT NULL"
+      - name: spo2_pct
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 70
+                max_value: 100
+              config:
+                where: "spo2_pct IS NOT NULL"
+
+  - name: silver_medications
+    description: >
+      Deduplicated medications with drug names title-cased, frequency
+      normalised to controlled vocabulary, negative dosages clamped to NULL.
+    columns:
+      - name: med_id
+        tests:
+          - not_null
+          - unique
+      - name: patient_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_patients')
+                field: patient_id
+      - name: drug_name
+        tests:
+          - not_null
+      - name: frequency
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - once_daily
+                  - twice_daily
+                  - three_times_daily
+                  - four_times_daily
+                  - as_needed
+                  - unknown
+      - name: dosage_mg
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                exclusive: true
+              config:
+                where: "dosage_mg IS NOT NULL"
+      - name: _silver_loaded_at
+        tests:
+          - not_null

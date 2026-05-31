@@ -1,0 +1,76 @@
+version: 2
+
+models:
+
+  - name: bronze_patients
+    description: >
+      Raw patient records ingested from healthcare_platform.patients.
+      Nulls and blank strings coalesced to UNKNOWN. Audit columns added.
+    columns:
+      - name: patient_id
+        tests:
+          - not_null
+          - unique
+      - name: first_name
+        tests:
+          - not_null
+      - name: last_name
+        tests:
+          - not_null
+      - name: gender
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['MALE', 'FEMALE', 'UNSPECIFIED']
+      - name: _bronze_loaded_at
+        tests:
+          - not_null
+      - name: _dbt_run_id
+        tests:
+          - not_null
+
+  - name: bronze_vitals
+    description: >
+      Raw vitals ingested incrementally. Zero BP and heart_rate
+      coalesced to NULL. Temperature and SpO2 defaulted to norms.
+    columns:
+      - name: vital_id
+        tests:
+          - not_null
+          - unique
+      - name: patient_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('bronze_patients')
+                field: patient_id
+      - name: recorded_at
+        tests:
+          - not_null
+      - name: source_system
+        tests:
+          - not_null
+
+  - name: bronze_medications
+    description: >
+      Raw medication records ingested incrementally. Blank drug names
+      coalesced to UNKNOWN. Dosage nulls preserved intentionally.
+    columns:
+      - name: med_id
+        tests:
+          - not_null
+          - unique
+      - name: patient_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('bronze_patients')
+                field: patient_id
+      - name: drug_name
+        tests:
+          - not_null
+      - name: _bronze_loaded_at
+        tests:
+          - not_null

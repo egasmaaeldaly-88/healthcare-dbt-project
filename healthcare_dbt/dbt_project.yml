@@ -1,0 +1,24 @@
+name: 'healthcare_platform'
+version: '1.0.0'
+config-version: 2
+
+profile: 'healthcare_databricks'
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths:  ["tests"]
+
+models:
+  healthcare_platform:
+    bronze:
+      +materialized: table
+      +schema: bronze          # ← ستصبح داخل Databricks: main.bronze
+      +tags: ["bronze"]
+    silver:
+      +materialized: table
+      +schema: silver          # ← ستصبح داخل Databricks: main.silver
+      +tags: ["silver"]
+    gold:
+      +materialized: table
+      +schema: gold            # ← ستصبح داخل Databricks: main.gold
+      +tags: ["gold"]
