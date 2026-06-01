@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: healthcare_raw
+    database: workspace         # مطابق للـ catalog في profiles.yml
+    schema: healthcare_platform # مكان وجود الـ CSV الخام
+    tables:
+      - name: patients
+      - name: vitals
+      - name: medications

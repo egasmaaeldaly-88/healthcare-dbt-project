@@ -9,7 +9,7 @@
 }}
 
 WITH source AS (
-    SELECT * FROM healthcare_platform.vitals
+    SELECT * FROM {{ source('healthcare_raw', 'vitals') }}
     {% if is_incremental() %}
     WHERE recorded_at > (SELECT MAX(_bronze_loaded_at) FROM {{ this }})
     {% endif %}
