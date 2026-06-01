@@ -11,23 +11,6 @@ import uuid
 import os
 import streamlit as st
 
-# نحاول استيراد dbutils، إذا فشل (محلياً)، نستخدم نسخة وهمية أو نتخطاها
-try:
-    from databricks.sdk.runtime import dbutils
-    # إذا نجح الاستيراد، نحن داخل Databricks
-    is_databricks = True
-except ImportError:
-    # إذا فشل، نحن نعمل محلياً
-    is_databricks = False
-    dbutils = None
-
-# لاحقاً في الكود، استخدمي المتغير للتحقق
-if is_databricks:
-    # استخدمي dbutils هنا إذا لزم الأمر
-    pass
-else:
-    # الكود الخاص بالعمل المحلي
-    st.warning(" Databricks is not available We are working locally ")
 
 # ── Warm up warehouse connection at app start ──────────────────────────────────
 @st.cache_resource(show_spinner=False)
