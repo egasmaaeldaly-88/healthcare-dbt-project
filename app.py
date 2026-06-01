@@ -120,7 +120,7 @@ def load_vitals_timeseries(patient_id: str | None = None) -> pd.DataFrame:
         with conn.cursor() as cur:
             query = """
                 SELECT * FROM
-                healthcare_platform.vw_patient_vitals_timeseries
+                workspace.default.vw_patient_vitals_timeseries
             """
             if patient_id:
                 query += f" WHERE patient_id = '{patient_id}'"
@@ -621,6 +621,9 @@ elif st.session_state.role == "doctor":
             ["HIGH", "MEDIUM", "LOW"],
             default=["HIGH", "MEDIUM", "LOW"]
         )
+        # أضيفي هذا السطر قبل سطر الـ filtered[...]
+
+
         filtered = df[df["risk_level"].isin(risk_filter)]
         st.dataframe(
             filtered[[
@@ -628,7 +631,7 @@ elif st.session_state.role == "doctor":
                 "risk_level", "composite_risk_score",
                 "avg_systolic_bp", "avg_diastolic_bp",
                 "avg_heart_rate", "avg_spo2_pct",
-                "active_medications", "last_reading_at"
+                "active_medications", "latest_recorded_at"
             ]],
             use_container_width=True,
             hide_index=True
