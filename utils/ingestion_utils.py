@@ -236,35 +236,49 @@ def ingest_csv_streamlit(
             valid_df['patient_id'] = [str(uuid.uuid4()) for _ in range(len(valid_df))]
 
     # ── Write valid rows ───────────────────────────────────────────────────────
+    # ── Write valid rows ───────────────────────────────────────────────────────
     if not valid_df.empty:
+        # 1. أولاً: تأكدي من وجود كافة الأعمدة المطلوبة وتوليد القيم الناقصة
+        if 'patient_id' not in valid_df.columns:
+            import uuid
+            valid_df['patient_id'] = [str(uuid.uuid4()) for _ in range(len(valid_df))]
+        
         valid_df["_source_file"]      = file_name
         valid_df["_source_name"]      = source_name
         valid_df["_ingested_at"]      = datetime.now(timezone.utc).isoformat()
         valid_df["_ingestion_run_id"] = run_id
 
+        # 2. تحديد الترتيب النهائي للأعمدة (يجب أن يطابق ترتيب الأعمدة في الجدول)
+        # هذا الترتيب هو ما سيضمن عدم حدوث خطأ Arity Mismatch
+        expected_columns = [
+            'national_id', 'first_name', 'last_name', 'date_of_birth', 'gender', 
+            'blood_type', 'contact_email', '_source_file', '_source_name', 
+            '_ingested_at', '_ingestion_run_id', 'patient_id'
+        ]
+        
+        # التأكد من إعادة ترتيب الـ DataFrame ليتطابق مع القائمة أعلاه
+        valid_df = valid_df[expected_columns]
+
         target_table = f"workspace.healthcare_platform.bronze_ingestion_{source_name}"
 
         with get_connection() as conn:
             with conn.cursor() as cur:
-                # Create table on first run if needed
-                cols_ddl = ",\n".join(
-                    [f"`{c}` STRING" for c in valid_df.columns]
-                )
+                # Create table if needed
+                cols_ddl = ",\n".join([f"`{c}` STRING" for c in expected_columns])
                 cur.execute(f"""
                     CREATE TABLE IF NOT EXISTS {target_table} ({cols_ddl})
                     USING DELTA
                 """)
 
-                # Insert rows
+                # Insert rows (الآن أصبحنا واثقين أن الترتيب هو نفسه دائماً)
                 for _, row in valid_df.iterrows():
                     vals = ", ".join([
-                        "NULL" if pd.isna(v)
+                        "NULL" if pd.isna(v) or v == 'None' 
                         else f"'{str(v).replace(chr(39), chr(39)*2)}'"
                         for v in row.values
                     ])
-                    cur.execute(
-                        f"INSERT INTO {target_table} VALUES ({vals})"
-                    )
+                    cur.execute(f"INSERT INTO {target_table} VALUES ({vals})")
+                
                 rows_loaded = len(valid_df)
 
     # ── Write rejected rows ────────────────────────────────────────────────────
