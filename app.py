@@ -551,7 +551,7 @@ if st.session_state.role == "patient":
 elif st.session_state.role == "doctor":
     st.title("Clinical Dashboard")
 
-    tab_dashboard, tab_vitals_drill, tab_monitor, tab_quality, tab_ai = st.tabs([
+    tab_dashboard, tab_vitals_drill,tab_meds, tab_monitor, tab_quality, tab_ai = st.tabs([
         "📊 Dashboard",
         "🩺 Patient Vitals",
         "💊 Prescribe Medication",
