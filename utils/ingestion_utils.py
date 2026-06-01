@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from databricks import sql
 import pandas as pd
 import streamlit as st
+import uuid
 
 
 # ── Connection ─────────────────────────────────────────────────────────────────
@@ -141,6 +142,7 @@ def ingest_csv_streamlit(
     # ── Read CSV ───────────────────────────────────────────────────────────────
     df = pd.read_csv(uploaded_file, delimiter=delimiter, dtype=str)
     df.columns = df.columns.str.strip()
+   
 
     # ── Apply column mapping ───────────────────────────────────────────────────
     df = df.rename(columns=column_mapping)
@@ -227,6 +229,11 @@ def ingest_csv_streamlit(
 
     rows_loaded   = len(valid_df)
     rows_rejected = len(rejected_df)
+    if not valid_df.empty:
+        # --- إضافة التعديل هنا ---
+        if 'patient_id' not in valid_df.columns:
+            import uuid
+            valid_df['patient_id'] = [str(uuid.uuid4()) for _ in range(len(valid_df))]
 
     # ── Write valid rows ───────────────────────────────────────────────────────
     if not valid_df.empty:
@@ -397,30 +404,18 @@ def load_rejected_records(source_filter: str = "ALL") -> pd.DataFrame:
                 columns=[d[0] for d in cur.description]
             )
 def merge_csv_to_patients(source_name: str = "patients_csv") -> int:
-    """
-    Merges validated rows from bronze_ingestion table
-    into the main healthcare_platform.patients table.
-    Returns count of rows merged.
-    """
-    staging_table = f"healthcare_platform.bronze_ingestion_{source_name}"
-    target_table  = "healthcare_platform.patients"
+    staging_table = f"workspace.healthcare_platform.bronze_ingestion_{source_name}"
+    target_table  = "workspace.healthcare_platform.patients"
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-
-            # Check staging table has rows
-            cur.execute(f"SELECT COUNT(*) AS n FROM {staging_table}")
-            count = cur.fetchone()[0]
-
-            if count == 0:
-                return 0
-
-            # Merge staging into main patients table
+            # تنفيذ الـ MERGE مع الأعمدة المفصولة
             cur.execute(f"""
                 MERGE INTO {target_table} AS target
                 USING (
                     SELECT DISTINCT
-                        national_id         AS patient_id,
+                        patient_id,
+                        national_id,
                         first_name,
                         last_name,
                         date_of_birth,
@@ -429,12 +424,13 @@ def merge_csv_to_patients(source_name: str = "patients_csv") -> int:
                         contact_email,
                         current_timestamp() AS created_at
                     FROM {staging_table}
-                    WHERE national_id IS NOT NULL
+                    WHERE patient_id IS NOT NULL
                 ) AS source
                 ON target.patient_id = source.patient_id
                 WHEN NOT MATCHED THEN
                     INSERT (
-                        patient_id,
+                        patient_id, 
+                        national_id,
                         first_name,
                         last_name,
                         date_of_birth,
@@ -445,6 +441,7 @@ def merge_csv_to_patients(source_name: str = "patients_csv") -> int:
                     )
                     VALUES (
                         source.patient_id,
+                        source.national_id,
                         source.first_name,
                         source.last_name,
                         source.date_of_birth,
@@ -454,15 +451,7 @@ def merge_csv_to_patients(source_name: str = "patients_csv") -> int:
                         source.created_at
                     )
             """)
-
-            # Count how many were inserted
-            cur.execute(f"""
-                SELECT COUNT(*) AS n
-                FROM {target_table}
-                WHERE patient_id IN (
-                    SELECT DISTINCT national_id
-                    FROM {staging_table}
-                )
-            """)
-            merged = cur.fetchone()[0]
-            return merged        
+            
+            # التحقق من عدد السجلات المدمجة
+            cur.execute(f"SELECT COUNT(*) FROM {staging_table} WHERE patient_id IN (SELECT patient_id FROM {target_table})")
+            return cur.fetchone()[0]

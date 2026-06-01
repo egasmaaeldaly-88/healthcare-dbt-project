@@ -2,14 +2,15 @@ version: 2
 
 models:
   - name: bronze_patients
-    description: >
-      Raw patient records ingested from healthcare_platform.patients.
-      Nulls and blank strings coalesced to UNKNOWN. Audit columns added.
+    description: "Raw patient records ingested from healthcare_platform.patients."
     columns:
       - name: patient_id
         tests:
           - not_null
           - unique
+      - name: national_id
+        tests:
+          - not_null
       - name: first_name
         tests:
           - not_null
@@ -19,8 +20,7 @@ models:
       - name: gender
         tests:
           - accepted_values:
-              arguments: # ← تم التحديث هنا لموافقة الإصدار الجديد
-                values: ['MALE', 'FEMALE', 'UNSPECIFIED', 'M', 'F', 'm', 'f']
+              values: ['MALE', 'FEMALE', 'UNSPECIFIED', 'M', 'F', 'm', 'f']
       - name: _bronze_loaded_at
         tests:
           - not_null
@@ -29,9 +29,7 @@ models:
           - not_null
 
   - name: bronze_vitals
-    description: >
-      Raw vitals ingested incrementally. Zero BP and heart_rate
-      coalesced to NULL. Temperature and SpO2 defaulted to norms.
+    description: "Raw vitals ingested incrementally."
     columns:
       - name: vital_id
         tests:
@@ -41,9 +39,8 @@ models:
         tests:
           - not_null
           - relationships:
-              arguments: # ← تم التحديث هنا لموافقة الإصدار الجديد
-                to: ref('bronze_patients')
-                field: patient_id
+              to: ref('bronze_patients')
+              field: patient_id
       - name: recorded_at
         tests:
           - not_null
@@ -52,9 +49,7 @@ models:
           - not_null
 
   - name: bronze_medications
-    description: >
-      Raw medication records ingested incrementally. Blank drug names
-      coalesced to UNKNOWN. Dosage nulls preserved intentionally.
+    description: "Raw medication records ingested incrementally."
     columns:
       - name: med_id
         tests:
@@ -64,9 +59,8 @@ models:
         tests:
           - not_null
           - relationships:
-              arguments: # ← تم التحديث هنا لموافقة الإصدار الجديد
-                to: ref('bronze_patients')
-                field: patient_id
+              to: ref('bronze_patients')
+              field: patient_id
       - name: drug_name
         tests:
           - not_null
