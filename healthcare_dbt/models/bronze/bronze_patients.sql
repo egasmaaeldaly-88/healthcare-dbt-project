@@ -9,12 +9,13 @@
 }}
 
 WITH source AS (
-    SELECT * FROM {{ source('healthcare_raw', 'patients') }}
+    SELECT * FROM {{ source('healthcare_platform', 'patients') }}
 ),
 
 coalesced AS (
     SELECT
         patient_id,
+        national_id,
 
         -- COALESCE chain: prefer first_name, fall back to 'UNKNOWN'
         COALESCE(
@@ -44,7 +45,7 @@ coalesced AS (
 
         -- Audit columns for lineage
         current_timestamp()                                     AS _bronze_loaded_at,
-        '{{ source("healthcare_raw", "patients") }}'            AS _source_table,
+        '{{ source("healthcare_platform", "patients") }}'            AS _source_table,
         '{{ invocation_id }}'                                   AS _dbt_run_id
 
     FROM source

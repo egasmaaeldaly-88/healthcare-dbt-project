@@ -14,8 +14,9 @@ models:
       - name: avg_systolic_bp
         tests:
           - dbt_utils.accepted_range:
-              min_value: 60
-              max_value: 250
+              arguments:
+                min_value: 60
+                max_value: 250
               config:
                 where: "avg_systolic_bp IS NOT NULL"
 
@@ -28,13 +29,15 @@ models:
       - name: risk_level
         tests:
           - accepted_values:
-              values: ['LOW', 'MEDIUM', 'HIGH']
+              arguments:
+                values: ['LOW', 'MEDIUM', 'HIGH']
       - name: composite_risk_score
         tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 200
+              arguments:
+                min_value: 0
+                max_value: 200
 
   - name: gold_doctor_dashboard
     description: "Full dashboard view — one row per patient with risk flags and latest readings."
@@ -46,7 +49,8 @@ models:
       - name: risk_level
         tests:
           - accepted_values:
-              values: ['LOW', 'MEDIUM', 'HIGH']
+              arguments:
+                values: ['LOW', 'MEDIUM', 'HIGH']
       - name: flag_high_risk
         tests:
           - not_null
