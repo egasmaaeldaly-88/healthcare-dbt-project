@@ -169,7 +169,7 @@ def load_quality_health() -> pd.DataFrame:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT * FROM workspace.default.healthcare_platform.vw_quality_health
+                SELECT * FROM workspace.healthcare_platform.vw_quality_health
                 LIMIT 10
             """)
             return pd.DataFrame(
@@ -192,7 +192,7 @@ def load_latest_quality() -> pd.DataFrame:
                     status,
                     message,
                     checked_at
-                FROM workspace.default.healthcare_platform.vw_latest_quality
+                FROM workspace.healthcare_platform.vw_latest_quality
                 ORDER BY
                     CASE status
                         WHEN 'FAIL'  THEN 1
