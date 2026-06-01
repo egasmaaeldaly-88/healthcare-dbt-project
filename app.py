@@ -163,6 +163,29 @@ def insert_vitals(patient_id: str, vitals: dict) -> bool:
         st.error(f"Insert failed: {e}")
         return False
 
+def insert_medication(patient_id: str, med_data: dict) -> bool:
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    INSERT INTO workspace.healthcare_platform.medications
+                        (med_id, patient_id, drug_name, dosage_mg,
+                         frequency, prescribing_doc, prescribed_at)
+                    VALUES (
+                        '{str(uuid.uuid4())[:8]}',
+                        '{patient_id}',
+                        '{med_data['drug_name']}',
+                        {med_data['dosage_mg']},
+                        '{med_data['frequency']}',
+                        '{med_data['prescribing_doc']}',
+                        '{med_data['prescribed_at']}'
+                    )
+                """)
+        return True
+    except Exception as e:
+        st.error(f"Medication insert failed: {e}")
+        return False    
+
 # ── Quality gate queries ───────────────────────────────────────────────────────
 @st.cache_data(ttl=120, show_spinner=False)
 def load_quality_health() -> pd.DataFrame:
@@ -531,6 +554,7 @@ elif st.session_state.role == "doctor":
     tab_dashboard, tab_vitals_drill, tab_monitor, tab_quality, tab_ai = st.tabs([
         "📊 Dashboard",
         "🩺 Patient Vitals",
+        "💊 Prescribe Medication",
         "🔍 Ingestion Monitor",
         "🏥 Quality Gates",
         "🤖 AI Insights"
@@ -692,6 +716,48 @@ elif st.session_state.role == "doctor":
                         st.plotly_chart(
                             fig_hr, use_container_width=True
                         )
+    # ── Tab 3: Prescribe Medication ─────────────────────────────────────────────
+    with tab_meds:
+        st.subheader("💊 Prescribe New Medication")
+        df_docs = load_doctor_dashboard()
+        
+        if df_docs.empty:
+            st.warning("No patient data available to prescribe medication.")
+        else:
+            with st.form("prescribe_med_form", clear_on_submit=True):
+                # قائمة منسدلة لاختيار المريض بناءً على المرضى المسجلين فعلياً
+                selected_patient_id = st.selectbox(
+                    "Select Patient:",
+                    options=df_docs["patient_id"].tolist(),
+                    format_func=lambda pid: df_docs[df_docs["patient_id"] == pid]["full_name"].values[0]
+                )
+                
+                drug_name = st.text_input("Drug Name:", placeholder="e.g., Metformin, Lipitor")
+                dosage_mg = st.number_input("Dosage (mg):", min_value=1, max_value=2000, value=500, step=50)
+                frequency = st.selectbox(
+                    "Frequency:",
+                    ["once_daily", "twice_daily", "three_times_daily", "four_times_daily", "as_needed", "unknown"]
+                )
+                prescribing_doc = st.text_input("Prescribing Doctor Name:", value="Dr. Ahmed")
+                
+                submit_med = st.form_submit_button("🚀 Submit Prescription", type="primary")
+                
+            if submit_med:
+                if not drug_name.strip():
+                    st.error("❌ Drug Name cannot be empty.")
+                else:
+                    med_data = {
+                        "drug_name": drug_name.strip(),
+                        "dosage_mg": dosage_mg,
+                        "frequency": frequency,
+                        "prescribing_doc": prescribing_doc.strip(),
+                        "prescribed_at": datetime.now(timezone.utc).isoformat()
+                    }
+                    with st.spinner("Saving prescription to Databricks..."):
+                        success = insert_medication(selected_patient_id, med_data)
+                    if success:
+                        st.success(f"✅ Prescription for '{drug_name}' saved successfully!")
+                        st.balloons()                    
 
     # ── Tab 3: Ingestion Monitor ───────────────────────────────────────────────
     with tab_monitor:
