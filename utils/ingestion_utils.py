@@ -296,6 +296,24 @@ def ingest_csv_streamlit(
                     last_updated        = current_timestamp()
                 WHERE source_name = '{source_name}'
             """)
+    # ── Merge valid rows into main patients table ──────────────────────────────
+    merged_count = 0
+    if rows_loaded > 0:
+        try:
+            merged_count = merge_csv_to_patients(source_name)
+        except Exception as e:
+            merged_count = 0
+
+    return {
+        "status":        "SUCCESS",
+        "file":          file_name,
+        "rows_total":    len(df),
+        "rows_loaded":   rows_loaded,
+        "rows_rejected": rows_rejected,
+        "rows_merged":   merged_count,      # ← new
+        "rejected_df":   rejected_df
+    }        
+            
 
     return {
         "status":        "SUCCESS",
@@ -378,3 +396,73 @@ def load_rejected_records(source_filter: str = "ALL") -> pd.DataFrame:
                 cur.fetchall(),
                 columns=[d[0] for d in cur.description]
             )
+def merge_csv_to_patients(source_name: str = "patients_csv") -> int:
+    """
+    Merges validated rows from bronze_ingestion table
+    into the main healthcare_platform.patients table.
+    Returns count of rows merged.
+    """
+    staging_table = f"healthcare_platform.bronze_ingestion_{source_name}"
+    target_table  = "healthcare_platform.patients"
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+
+            # Check staging table has rows
+            cur.execute(f"SELECT COUNT(*) AS n FROM {staging_table}")
+            count = cur.fetchone()[0]
+
+            if count == 0:
+                return 0
+
+            # Merge staging into main patients table
+            cur.execute(f"""
+                MERGE INTO {target_table} AS target
+                USING (
+                    SELECT DISTINCT
+                        national_id         AS patient_id,
+                        first_name,
+                        last_name,
+                        date_of_birth,
+                        gender,
+                        blood_type,
+                        contact_email,
+                        current_timestamp() AS created_at
+                    FROM {staging_table}
+                    WHERE national_id IS NOT NULL
+                ) AS source
+                ON target.patient_id = source.patient_id
+                WHEN NOT MATCHED THEN
+                    INSERT (
+                        patient_id,
+                        first_name,
+                        last_name,
+                        date_of_birth,
+                        gender,
+                        blood_type,
+                        contact_email,
+                        created_at
+                    )
+                    VALUES (
+                        source.patient_id,
+                        source.first_name,
+                        source.last_name,
+                        source.date_of_birth,
+                        source.gender,
+                        source.blood_type,
+                        source.contact_email,
+                        source.created_at
+                    )
+            """)
+
+            # Count how many were inserted
+            cur.execute(f"""
+                SELECT COUNT(*) AS n
+                FROM {target_table}
+                WHERE patient_id IN (
+                    SELECT DISTINCT national_id
+                    FROM {staging_table}
+                )
+            """)
+            merged = cur.fetchone()[0]
+            return merged        

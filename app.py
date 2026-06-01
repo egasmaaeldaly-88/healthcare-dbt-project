@@ -498,10 +498,11 @@ if st.session_state.role == "patient":
                         )
 
                         st.success("✅ Ingestion complete!")
-                        col1, col2, col3 = st.columns(3)
+                        col1, col2, col3 , col4= st.columns(4)
                         col1.metric("Total Rows",  result["rows_total"])
                         col2.metric("✅ Loaded",   result["rows_loaded"])
                         col3.metric("❌ Rejected", result["rows_rejected"])
+                        col4.metric("👥 In Patients", result.get("rows_merged", 0))
 
                         if result["rows_rejected"] > 0:
                             st.warning(
