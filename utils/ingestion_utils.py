@@ -99,7 +99,7 @@ def patient_exists(patient_id: str) -> bool:
             with conn.cursor() as cur:
                 cur.execute(f"""
                     SELECT COUNT(1) AS n
-                    FROM healthcare_platform.patients
+                    FROM workspace.healthcare_platform.patients
                     WHERE patient_id = '{patient_id}'
                 """)
                 row = cur.fetchone()
@@ -109,6 +109,7 @@ def patient_exists(patient_id: str) -> bool:
         import streamlit as st
         st.error(f"Connection error: {e}")
         return False
+    
 
 
 # ── CSV ingestion (Streamlit-side, pandas-based) ───────────────────────────────
@@ -311,7 +312,7 @@ def register_patient(patient: dict) -> bool:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(f"""
-                INSERT INTO healthcare_platform.patients
+                INSERT INTO workspace.healthcare_platform.patients
                     (patient_id, first_name, last_name,
                      date_of_birth, gender, blood_type,
                      contact_email, created_at)
