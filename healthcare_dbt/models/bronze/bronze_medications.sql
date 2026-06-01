@@ -9,7 +9,7 @@
 }}
 
 WITH source AS (
-    SELECT * FROM {{ source('healthcare_raw', 'vitals') }}
+    SELECT * FROM {{ source('healthcare_raw', 'medications') }} -- ← تم تصحيح المصدر هنا من vitals إلى medications
     {% if is_incremental() %}
     WHERE prescribed_at > (SELECT MAX(_bronze_loaded_at) FROM {{ this }})
     {% endif %}
