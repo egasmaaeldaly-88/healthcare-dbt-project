@@ -19,7 +19,8 @@ models:
       - name: gender
         tests:
           - accepted_values:
-              values: ['MALE', 'FEMALE', 'UNSPECIFIED', 'M', 'F', 'm', 'f']
+              arguments: # ← تم التحديث هنا لموافقة الإصدار الجديد
+                values: ['MALE', 'FEMALE', 'UNSPECIFIED', 'M', 'F', 'm', 'f']
       - name: _bronze_loaded_at
         tests:
           - not_null
@@ -40,8 +41,9 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('bronze_patients')
-              field: patient_id
+              arguments: # ← تم التحديث هنا لموافقة الإصدار الجديد
+                to: ref('bronze_patients')
+                field: patient_id
       - name: recorded_at
         tests:
           - not_null
@@ -62,8 +64,9 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('bronze_patients')
-              field: patient_id
+              arguments: # ← تم التحديث هنا لموافقة الإصدار الجديد
+                to: ref('bronze_patients')
+                field: patient_id
       - name: drug_name
         tests:
           - not_null
