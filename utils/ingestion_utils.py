@@ -76,15 +76,18 @@ def load_source_config(source_name: str) -> dict:
 # ── National ID validator (single value) ──────────────────────────────────────
 def validate_national_id(value: str, length: int = 14) -> tuple[bool, str]:
     """
-    Returns (is_valid, reason).
-    Used for single-row form validation in the registration form.
+    معدلة: تقبل الـ UUID (المعرف الفريد) أو الرقم القومي المكون من 14 رقماً.
     """
-    if not value or value.strip() == "":
-        return False, "National ID cannot be empty."
+    # التحقق إذا كان المعرف هو UUID (طوله 36 ويحتوي على شرطات)
+    if len(value) == 36 and "-" in value:
+        return True, ""
+        
+    # التحقق التقليدي للأرقام فقط
     if not value.isdigit():
         return False, "National ID must contain digits only."
     if len(value) != length:
-        return False, f"National ID must be exactly {length} digits (got {len(value)})."
+        return False, f"National ID must be exactly {length} digits."
+        
     return True, ""
 
 # utils/ingestion_utils.py
