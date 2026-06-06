@@ -149,51 +149,47 @@ def decode_base64_to_bytes(base64_str: str) -> bytes:
     return base64.b64decode(base64_str.encode("utf-8"))
 def insert_diagnostic(record: dict) -> str:
     """
-    Inserts diagnostic record with optional base64 file content.
-    Returns the diagnostic_id.
+    Inserts a new diagnostic record into the database.
+    Returns the generated diagnostic_id.
     """
     # 1. Generate the ID
     diagnostic_id = str(uuid.uuid4())
-    def esc(val):
-        if val is None:
-            return "NULL"
-        return f"'{str(val).replace(chr(39), chr(39)*2)}'"
+    
+    # 2. Define the Query
+    query = f"""
+        INSERT INTO workspace.healthcare_platform.diagnostic_records (
+            diagnostic_id, patient_id, diagnostic_type, diagnostic_name,
+            diagnostic_date, result_summary, result_status, ordering_doctor,
+            performing_lab, notes, file_name, file_path, file_type,
+            file_size_kb, created_at, created_by, last_updated
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(), ?, current_timestamp())
+    """
+    
+    # 3. Safely map parameters
+    params = (
+        diagnostic_id,
+        record.get("patient_id"),
+        record.get("diagnostic_type"),
+        record.get("diagnostic_name"),
+        record.get("diagnostic_date"),
+        record.get("result_summary"),
+        record.get("result_status", "PENDING"),
+        record.get("ordering_doctor"),
+        record.get("performing_lab"),
+        record.get("notes"),
+        record.get("file_name"),
+        record.get("file_path"),
+        record.get("file_type"),
+        record.get("file_size_kb", 0),
+        record.get("created_by", "patient")
+    )
 
-    # file_content can be very long — handle separately
-    file_content = record.get("file_content")
+    # 4. Execute
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(f"""
-                INSERT INTO workspace.healthcare_platform.diagnostic_records (
-                    diagnostic_id, patient_id, diagnostic_type,
-                    diagnostic_name, diagnostic_date, result_summary,
-                    result_status, ordering_doctor, performing_lab,
-                    notes, file_name, file_path, file_type,
-                    file_size_kb, file_content,
-                    created_at, created_by, last_updated
-                    )VALUES (
-                    {esc(record.get("diagnostic_id"))},
-                    {esc(record.get("patient_id"))},
-                    {esc(record.get("diagnostic_type"))},
-                    {esc(record.get("diagnostic_name"))},
-                    {esc(record.get("diagnostic_date"))},
-                    {esc(record.get("result_summary"))},
-                    {esc(record.get("result_status", "PENDING"))},
-                    {esc(record.get("ordering_doctor"))},
-                    {esc(record.get("performing_lab"))},
-                    {esc(record.get("notes"))},
-                    {esc(record.get("file_name"))},
-                    {esc(record.get("file_path"))},
-                    {esc(record.get("file_type"))},
-                    {record.get("file_size_kb", 0)},
-                    {esc(file_content)},
-                    current_timestamp(),
-                     {esc(record.get("created_by", "patient"))},
-                    current_timestamp()
-                )
-            """)
-
-    return record["diagnostic_id"]
+            cur.execute(query, params)
+            
+    return diagnostic_id
 
 
 # ── Insert structured lab values ───────────────────────────────────────────────
