@@ -166,7 +166,7 @@ def insert_diagnostic(record: dict) -> bool:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(f"""
-                INSERT INTO healthcare_platform.diagnostic_records (
+                INSERT INTO workspace.healthcare_platform.diagnostic_records (
                     diagnostic_id, patient_id, diagnostic_type,
                     diagnostic_name, diagnostic_date, result_summary,
                     result_status, ordering_doctor, performing_lab,
@@ -216,7 +216,7 @@ def insert_lab_values(
                     )
                 )
                 cur.execute(f"""
-                    INSERT INTO healthcare_platform.lab_results (
+                    INSERT INTO workspace.healthcare_platform.lab_results (
                         lab_result_id, diagnostic_id, patient_id,
                         test_name, test_value, test_unit,
                         reference_min, reference_max,
@@ -259,7 +259,7 @@ def load_patient_diagnostics(patient_id: str) -> pd.DataFrame:
                     file_type,
                     notes,
                     created_at
-                FROM healthcare_platform.diagnostic_records
+                FROM workspace.healthcare_platform.diagnostic_records
                 WHERE patient_id = '{patient_id}'
                 ORDER BY diagnostic_date DESC, created_at DESC
             """)
@@ -291,7 +291,7 @@ def load_all_diagnostics(
                 if where_clauses else ""
             )
             cur.execute(f"""
-                SELECT * FROM healthcare_platform.vw_patient_diagnostics
+                SELECT * FROM workspace.healthcare_platform.vw_patient_diagnostics
                 {where}
                 LIMIT 500
             """)
@@ -315,7 +315,7 @@ def load_lab_results(diagnostic_id: str) -> pd.DataFrame:
                     reference_max,
                     is_abnormal,
                     recorded_at
-                FROM healthcare_platform.lab_results
+                FROM workspace.healthcare_platform.lab_results
                 WHERE diagnostic_id = '{diagnostic_id}'
                 ORDER BY test_name
             """)
@@ -338,7 +338,7 @@ def load_diagnostic_stats() -> pd.DataFrame:
                           OR result_status = 'CRITICAL') AS abnormal_count,
                     COUNT_IF(result_status = 'PENDING')  AS pending_count,
                     MAX(diagnostic_date)                AS latest_date
-                FROM healthcare_platform.diagnostic_records
+                FROM workspace.healthcare_platform.diagnostic_records
                 GROUP BY diagnostic_type
                 ORDER BY total DESC
             """)
