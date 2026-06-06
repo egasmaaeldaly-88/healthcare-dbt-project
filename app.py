@@ -13,12 +13,14 @@ import streamlit as st
 from utils.diagnostics_utils import (
     DIAGNOSTIC_TYPES,
     RESULT_STATUSES,
-    save_diagnostic_file,
+    encode_file_to_base64,
+    decode_base64_to_bytes, 
     insert_diagnostic,
     insert_lab_values,
     load_patient_diagnostics,
     load_all_diagnostics,
     load_lab_results,
+    load_file_content,
     load_diagnostic_stats,
 )
 
@@ -567,6 +569,49 @@ if st.session_state.role == "patient":
             "➕ Add New Diagnostic",
             "📂 View My Records"
         ])
+        # Add below the diagnostics dataframe in View My Records tab
+
+st.divider()
+st.markdown("**Download a Report**")
+download_diag_id = st.text_input(
+    "Enter Diagnostic ID to download report:",
+    placeholder="Paste from table above",
+    key="download_diag_id"
+)
+
+if download_diag_id:
+    with st.spinner("Loading file…"):
+        content_b64, fname, ftype = load_file_content(
+            download_diag_id.strip()
+        )
+
+    if content_b64:
+        file_bytes = decode_base64_to_bytes(content_b64)
+
+        mime_map = {
+            "PDF":  "application/pdf",
+            "JPG":  "image/jpeg",
+            "JPEG": "image/jpeg",
+            "PNG":  "image/png",
+        }
+        mime = mime_map.get(ftype, "application/octet-stream")
+
+        # Show image preview for image files
+        if ftype in ("JPG", "JPEG", "PNG"):
+            st.image(
+                file_bytes,
+                caption=fname,
+                use_column_width=True
+            )
+
+        st.download_button(
+            label=f"⬇️ Download {fname}",
+            data=file_bytes,
+            file_name=fname,
+            mime=mime
+        )
+    else:
+        st.info("No file attached to this diagnostic record.")
 
         # ── Add new diagnostic ─────────────────────────────────────────────────
         with diag_sub1:
@@ -664,25 +709,31 @@ if st.session_state.role == "patient":
                 else:
                     with st.spinner("Saving diagnostic record…"):
                         try:
-                            # Handle file upload
-                            file_name    = None
-                            file_content = None
-                            file_type    = None
-                            file_size_kb = 0.0
-                            diag_id_temp = str(uuid.uuid4())
+                            # 1. Prepare your data dictionary here
+                            record = {
+                                "patient_id": patient_id, # Ensure this exists
+                                "diagnostic_type": diag_type,
+                                "diagnostic_name": diag_name,
+                                "diagnostic_date": diag_date,
+                                "result_summary": result_summary,
+                                "result_status": result_status,
+                                "ordering_doctor": doctor_name,
+                                "performing_lab": lab_name,
+                                "notes": notes,
+                                "file_name": uploaded_file.name if uploaded_file else None,
+                                "file_path": file_path if uploaded_file else None,
+                                "file_type": file_type if uploaded_file else None,
+                                "file_size_kb": file_size_kb if uploaded_file else 0,
+                                "created_by": st.session_state.get("user_id", "patient")
+                            }
 
-                            file_content = None
+                            # 2. Now call the function with the defined dictionary
                             diagnostic_id = insert_diagnostic(record)
 
                             st.success(
                                 f"✅ Diagnostic record saved successfully!\n\n"
                                 f"Record ID: `{diagnostic_id}`"
                             )
-
-                            # Invalidate cache
-                            load_patient_diagnostics.clear()
-                            load_diagnostic_stats.clear()
-
                         except Exception as e:
                             st.error(f"Failed to save: {e}")
 
