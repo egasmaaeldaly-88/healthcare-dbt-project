@@ -233,18 +233,17 @@ def ingest_csv_streamlit(
     rows_loaded   = len(valid_df)
     rows_rejected = len(rejected_df)
     if not valid_df.empty:
-        # --- إضافة التعديل هنا ---
-        if 'patient_id' not in valid_df.columns:
-            import uuid
-            valid_df['patient_id'] = [str(uuid.uuid4()) for _ in range(len(valid_df))]
+        # أضيفي هذا الكود في نفس المكان الذي حذفتِ منه السطور السابقة:
+        with get_connection() as conn:
+            # 1. جلب المرضى الحاليين من قاعدة البيانات
+            existing_patients = pd.read_sql("SELECT national_id, patient_id FROM workspace.healthcare_platform.patients", conn)
 
-    # ── Write valid rows ───────────────────────────────────────────────────────
-    # ── Write valid rows ───────────────────────────────────────────────────────
-    if not valid_df.empty:
-        # 1. أولاً: تأكدي من وجود كافة الأعمدة المطلوبة وتوليد القيم الناقصة
-        if 'patient_id' not in valid_df.columns:
-            import uuid
-            valid_df['patient_id'] = [str(uuid.uuid4()) for _ in range(len(valid_df))]
+        # 2. ربط الـ patient_id الموجود مع البيانات الجديدة بناءً على national_id
+        valid_df = valid_df.merge(existing_patients, on='national_id', how='left')
+
+        # 3. إذا كان المريض جديداً (لا يوجد له patient_id)، ولدي له واحد جديد
+        valid_df['patient_id'] = valid_df['patient_id'].apply(lambda x: str(uuid.uuid4()) if pd.isna(x) else x)
+    
         
         valid_df["_source_file"]      = file_name
         valid_df["_source_name"]      = source_name
