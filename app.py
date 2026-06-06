@@ -301,7 +301,7 @@ if st.session_state.role == "patient":
     tab_vitals, tab_register, tab_upload, tab_diagnostics= st.tabs([
         "📋 Submit Vitals",
         "🆕 Register",
-        "📤 Bulk Upload"
+        "📤 Bulk Upload",
         "🔬 My Diagnostics"
     ])
 
