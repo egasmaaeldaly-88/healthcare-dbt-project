@@ -344,16 +344,25 @@ if st.session_state.role == "patient":
             )
 
         if submitted:
-            is_valid, reason = validate_national_id(patient_id.strip())
-            if not is_valid:
-                st.error(reason)
-            elif systolic <= diastolic:
-                st.error(
-                    "Systolic BP must be greater than Diastolic BP."
-                )
-            else:
-                with st.spinner("Verifying patient…"):
-                    exists = patient_exists(patient_id.strip())
+                # التحقق من أن حقل Patient ID ليس فارغاً
+                if not patient_id or not patient_id.strip():
+                    st.error("Patient ID is required.")
+                
+                # التحقق من منطق ضغط الدم (Systolic > Diastolic)
+                elif systolic <= diastolic:
+                    st.error("Systolic BP must be greater than Diastolic BP.")
+                
+                # التحقق من وجود المريض في قاعدة البيانات
+                else:
+                    with st.spinner("Verifying patient…"):
+                        exists = patient_exists(patient_id.strip())
+                        
+                        if not exists:
+                            st.error("Patient ID not found in the system. Please check the ID.")
+                        else:
+                            # المريض موجود، يمكنكِ الآن إكمال عملية الحفظ هنا
+                            st.success("Patient verified! Proceeding with data entry...")
+                            # ضعي هنا الكود الخاص بحفظ بيانات ضغط الدم (Vitals)
 
                 if not exists:
                     st.error(
@@ -430,11 +439,7 @@ if st.session_state.role == "patient":
 
         if register_btn:
             errors = []
-            id_valid, id_reason = validate_national_id(
-                reg_national_id.strip()
-            )
-            if not id_valid:
-                errors.append(id_reason)
+            # التحقق من المدخلات الأساسية
             if not reg_first_name.strip():
                 errors.append("First name is required.")
             if not reg_last_name.strip():
@@ -444,51 +449,36 @@ if st.session_state.role == "patient":
                 for err in errors:
                     st.error(err)
             else:
-                with st.spinner("Checking registration…"):
+                with st.spinner("Registering patient…"):
                     try:
-                        # نفحص بالـ National ID لمنع التسجيل المكرر لنفس الشخص
-                        already_exists = patient_exists(
-                            reg_national_id.strip()
+                        # بما أننا لا نعتمد على الرقم القومي، نقوم بالتسجيل مباشرة
+                        # أو يمكنك فحص التكرار بناءً على (الاسم + تاريخ الميلاد) إذا أردتِ
+                        patient_data = {
+                            "first_name":    reg_first_name.strip(),
+                            "last_name":     reg_last_name.strip(),
+                            "date_of_birth": str(reg_dob),
+                            "gender":        reg_gender,
+                            "blood_type":    reg_blood,
+                            "contact_email": reg_email.strip(),
+                        }
+                        
+                        # استدعاء دالة التسجيل (تأكدي أنها تضيف الـ patient_id في الـ DB)
+                        new_uuid = register_patient(patient_data)
+                        
+                        st.success(
+                            f"✅ **{reg_first_name} {reg_last_name}** "
+                            f"registered successfully!\n\n"
+                            f"📌 **Important:** Save your System Patient ID for logins and vitals:\n"
+                            f"`{new_uuid}`"
                         )
+                        
+                        # تنظيف الكاش
+                        if "load_doctor_dashboard" in globals():
+                            load_doctor_dashboard.clear()
+                            
+                        st.balloons()
                     except Exception as e:
-                        st.error(f"Database error: {e}")
-                        st.stop()
-
-                if already_exists:
-                    st.warning(
-                        "⚠️ A patient with this National ID "
-                        "is already registered."
-                    )
-                else:
-                    patient_data = {
-                        "national_id":   reg_national_id.strip(),
-                        "first_name":    reg_first_name.strip(),
-                        "last_name":     reg_last_name.strip(),
-                        "date_of_birth": str(reg_dob),
-                        "gender":        reg_gender,
-                        "blood_type":    reg_blood,
-                        "contact_email": reg_email.strip(),
-                    }
-                    with st.spinner("Registering…"):
-                        try:
-                            # 1. استدعاء الدالة وحفظ الـ UUID المتولد في متغير
-                            new_uuid = register_patient(patient_data)
-                            
-                            # 2. عرض رسالة النجاح مع المعرف الفريد الحقيقي
-                            st.success(
-                                f"✅ **{reg_first_name} {reg_last_name}** "
-                                f"registered successfully!\n\n"
-                                f"📌 **Important:** Save your System Patient ID for logins and vitals:\n"
-                                f"`{new_uuid}`"
-                            )
-                            
-                            # 3. تنظيف الكاش لتحديث شاشة الطبيب فورًا
-                            if "load_doctor_dashboard" in globals():
-                                load_doctor_dashboard.clear()
-                                
-                            st.balloons()
-                        except Exception as e:
-                            st.error(f"Registration failed: {e}")
+                        st.error(f"Registration failed: {e}")
     # ── Tab 3: Bulk CSV Upload ─────────────────────────────────────────────────
     with tab_upload:
         st.subheader("Bulk Patient Upload via CSV")
@@ -586,8 +576,9 @@ if st.session_state.role == "patient":
                 col1, col2 = st.columns(2)
                 with col1:
                     diag_patient_id = st.text_input(
-                        "Your Patient ID (National ID) *",
-                        placeholder="14-digit number"
+                        "Patient ID *", 
+                        placeholder="Enter Patient ID (e.g., P-12345)",
+                        help="Use the system generated Patient ID"
                     )
                     diag_type = st.selectbox(
                         "Diagnostic Type *",
@@ -653,14 +644,17 @@ if st.session_state.role == "patient":
                 )
 
             # Handle submission outside form
+            # Handle submission outside form
             if submit_diag:
                 errors = []
 
-                id_valid, id_reason = validate_national_id(
-                    diag_patient_id.strip()
-                )
-                if not id_valid:
-                    errors.append(id_reason)
+                # التحقق الجديد
+                if not diag_patient_id.strip():
+                    errors.append("Patient ID is required.")
+                elif not patient_exists(diag_patient_id.strip()):
+                    errors.append("Patient ID not found. Please check the ID.")
+                
+                # التحقق من اسم التشخيص
                 if not diag_name:
                     errors.append("Diagnostic name is required.")
 
@@ -812,19 +806,23 @@ if st.session_state.role == "patient":
         with diag_sub2:
             view_patient_id = st.text_input(
                 "Enter your Patient ID to view records:",
-                placeholder="14-digit National ID",
+                placeholder="e.g., P-12345",
                 key="view_diag_patient_id"
             )
 
-            if view_patient_id:
-                is_valid, _ = validate_national_id(
-                    view_patient_id.strip()
-                )
-                if is_valid:
-                    with st.spinner("Loading your records…"):
-                        diag_df = load_patient_diagnostics(
-                            view_patient_id.strip()
-                        )
+            # التحقق الجديد: التأكد من وجود نص، ثم جلب البيانات
+            if view_patient_id and view_patient_id.strip():
+                with st.spinner("Loading your records…"):
+                    # نقوم بجلب البيانات مباشرة باستخدام الـ ID
+                    diag_df = load_patient_diagnostics(
+                        view_patient_id.strip()
+                    )
+                    
+                    # اختيارياً: التحقق إذا كان الـ DataFrame فارغاً لعرض رسالة للمستخدم
+                    if diag_df.empty:
+                        st.info("No records found for this Patient ID.")
+                    else:
+                        st.dataframe(diag_df) # أو أي طريقة عرض تستخدمينها
 
                     if diag_df.empty:
                         st.info(
