@@ -152,6 +152,8 @@ def insert_diagnostic(record: dict) -> str:
     Inserts diagnostic record with optional base64 file content.
     Returns the diagnostic_id.
     """
+    # 1. Generate the ID
+    diagnostic_id = str(uuid.uuid4())
     def esc(val):
         if val is None:
             return "NULL"
