@@ -349,15 +349,34 @@ def ingest_csv_streamlit(
 
 
 # ── Patient registration (single row insert) ───────────────────────────────────
+# ── Patient registration (single row insert) ───────────────────────────────────
 def register_patient(patient: dict) -> bool:
+    """
+    مصلحة: تقوم بتوليد الـ patient_id (UUID) تلقائياً 
+    وتضع الـ national_id في عموده الصحيح والمستقل.
+    """
+    import uuid
+    
+    # 1. توليد معرف UUID فريد ونظيف للمريض الجديد
+    generated_patient_id = str(uuid.uuid4())
+    
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(f"""
                 INSERT INTO workspace.healthcare_platform.patients
-                    (patient_id, first_name, last_name,
-                     date_of_birth, gender, blood_type,
-                     contact_email, created_at)
+                    (
+                        patient_id,      -- المعرف الفريد المولد تلقائياً
+                        national_id,     -- الرقم القومي المدخل من الشاشة
+                        first_name, 
+                        last_name,
+                        date_of_birth, 
+                        gender, 
+                        blood_type,
+                        contact_email, 
+                        created_at
+                    )
                 VALUES (
+                    '{generated_patient_id}',
                     '{patient["national_id"]}',
                     '{patient["first_name"].replace("'", "''")}',
                     '{patient["last_name"].replace("'", "''")}',
@@ -368,7 +387,7 @@ def register_patient(patient: dict) -> bool:
                     current_timestamp()
                 )
             """)
-    return True
+    return generated_patient_id  # ارجاع الـ UUID المتولد لطباعته للمستخدم
 
 
 # ── Ingestion monitor queries ──────────────────────────────────────────────────
