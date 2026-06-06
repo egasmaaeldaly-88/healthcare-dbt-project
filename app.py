@@ -666,40 +666,12 @@ if st.session_state.role == "patient":
                         try:
                             # Handle file upload
                             file_name    = None
-                            file_path    = None
+                            file_content = None
                             file_type    = None
                             file_size_kb = 0.0
                             diag_id_temp = str(uuid.uuid4())
 
-                            if uploaded_diag_file:
-                                file_path, file_size_kb = \
-                                    save_diagnostic_file(
-                                        uploaded_diag_file,
-                                        diag_patient_id.strip(),
-                                        diag_id_temp
-                                    )
-                                file_name = uploaded_diag_file.name
-                                file_type = uploaded_diag_file.name\
-                                    .split(".")[-1].upper()
-
-                            record = {
-                                "diagnostic_id":  diag_id_temp,
-                                "patient_id":     diag_patient_id.strip(),
-                                "diagnostic_type": diag_type,
-                                "diagnostic_name": diag_name,
-                                "diagnostic_date": str(diag_date),
-                                "result_summary":  result_summary or None,
-                                "result_status":   result_status,
-                                "ordering_doctor": ordering_doc or None,
-                                "performing_lab":  performing_lab or None,
-                                "notes":           notes or None,
-                                "file_name":       file_name,
-                                "file_path":       file_path,
-                                "file_type":       file_type,
-                                "file_size_kb":    file_size_kb,
-                                "created_by":      "patient",
-                            }
-
+                            file_content = None
                             diagnostic_id = insert_diagnostic(record)
 
                             st.success(
@@ -1529,39 +1501,42 @@ elif st.session_state.role == "doctor":
                         try:
                             diag_id_temp = str(uuid.uuid4())
                             file_name    = None
-                            file_path    = None
+                            file_content = None
                             file_type    = None
                             file_size_kb = 0.0
 
-                            if doc_file:
-                                file_path, file_size_kb = \
-                                    save_diagnostic_file(
-                                        doc_file,
-                                        doc_patient_id.strip(),
-                                        diag_id_temp
+                            if uploaded_diag_file:
+                                try:
+                                    file_content, file_size_kb, file_type = encode_file_to_base64(
+                                        uploaded_diag_file
                                     )
-                                file_name = doc_file.name
-                                file_type = doc_file.name\
-                                    .split(".")[-1].upper()
+                                    file_name = uploaded_diag_file.name
+                                    st.success(
+                                        f"✅ File ready: {file_name} "
+                                        f"({file_size_kb:.1f} KB)"
+                                    )
+                                except ValueError as e:
+                                    st.error(str(e))
+                                    st.stop()
 
                             record = {
                                 "diagnostic_id":   diag_id_temp,
-                                "patient_id":      doc_patient_id.strip(),
-                                "diagnostic_type": doc_diag_type,
-                                "diagnostic_name": doc_diag_name,
-                                "diagnostic_date": str(doc_diag_date),
-                                "result_summary":  doc_summary or None,
-                                "result_status":   doc_status,
-                                "ordering_doctor": doc_ordering or None,
-                                "performing_lab":  doc_lab or None,
-                                "notes":           doc_notes or None,
+                                "patient_id":      diag_patient_id.strip(),
+                                "diagnostic_type": diag_type,
+                                "diagnostic_name": diag_name,
+                                "diagnostic_date": str(diag_date),
+                                "result_summary":  result_summary or None,
+                                "result_status":   result_status,
+                                "ordering_doctor": ordering_doc or None,
+                                "performing_lab":  performing_lab or None,
+                                "notes":           notes or None,
                                 "file_name":       file_name,
-                                "file_path":       file_path,
+                                "file_path":       None,           # no file path needed anymore
                                 "file_type":       file_type,
                                 "file_size_kb":    file_size_kb,
-                                "created_by":      "doctor",
+                                "file_content":    file_content,   # base64 stored in Delta
+                                "created_by":      "patient",
                             }
-
                             diagnostic_id = insert_diagnostic(record)
                             load_all_diagnostics.clear()
                             load_diagnostic_stats.clear()

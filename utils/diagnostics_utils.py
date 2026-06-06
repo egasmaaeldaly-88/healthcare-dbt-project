@@ -1,6 +1,7 @@
 # utils/diagnostics_utils.py
 import os
 import uuid
+import base64
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timezone
@@ -123,46 +124,41 @@ DIAGNOSTIC_TYPES = {
 
 RESULT_STATUSES = ["PENDING", "NORMAL", "ABNORMAL", "CRITICAL"]
 
-FILE_UPLOAD_PATH = "/Workspace/Shared/healthcare/diagnostics"
-
-
-# ── Save uploaded file to workspace ───────────────────────────────────────────
-def save_diagnostic_file(
-    uploaded_file,
-    patient_id: str,
-    diagnostic_id: str
-) -> tuple[str, float]:
+# Max file size: 4MB (base64 overhead ~33%)
+MAX_FILE_SIZE_MB = 4
+def encode_file_to_base64(uploaded_file) -> tuple[str, float, str]:
     """
-    Saves uploaded file to workspace.
-    Returns (file_path, file_size_kb).
+    Encodes uploaded file to base64 string for storage in Delta.
+    Returns (base64_string, file_size_kb, file_type).
     """
-    patient_dir = f"{FILE_UPLOAD_PATH}/{patient_id}"
-    os.makedirs(patient_dir, exist_ok=True)
+    file_bytes   = uploaded_file.getbuffer()
+    file_size_kb = round(len(file_bytes) / 1024, 2)
+    file_size_mb = file_size_kb / 1024
 
-    ext       = uploaded_file.name.split(".")[-1].lower()
-    file_name = f"{diagnostic_id}.{ext}"
-    file_path = f"{patient_dir}/{file_name}"
+    if file_size_mb > MAX_FILE_SIZE_MB:
+        raise ValueError(
+            f"File too large: {file_size_mb:.1f}MB. "
+            f"Maximum allowed: {MAX_FILE_SIZE_MB}MB."
+        )
 
-    with open(file_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-
-    file_size_kb = round(uploaded_file.size / 1024, 2)
-    return file_path, file_size_kb
-
-
-# ── Insert diagnostic record ───────────────────────────────────────────────────
-def insert_diagnostic(record: dict) -> bool:
+    base64_str = base64.b64encode(file_bytes).decode("utf-8")
+    file_type  = uploaded_file.name.split(".")[-1].upper()
+    return base64_str, file_size_kb, file_type
+# ── Decode base64 back to bytes for download ───────────────────────────────────
+def decode_base64_to_bytes(base64_str: str) -> bytes:
+    return base64.b64decode(base64_str.encode("utf-8"))
+def insert_diagnostic(record: dict) -> str:
     """
-    Inserts a new diagnostic record into the database.
+    Inserts diagnostic record with optional base64 file content.
+    Returns the diagnostic_id.
     """
-    diagnostic_id = str(uuid.uuid4())
-    record["diagnostic_id"] = diagnostic_id
-
     def esc(val):
         if val is None:
             return "NULL"
         return f"'{str(val).replace(chr(39), chr(39)*2)}'"
 
+    # file_content can be very long — handle separately
+    file_content = record.get("file_content")
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(f"""
@@ -171,8 +167,9 @@ def insert_diagnostic(record: dict) -> bool:
                     diagnostic_name, diagnostic_date, result_summary,
                     result_status, ordering_doctor, performing_lab,
                     notes, file_name, file_path, file_type,
-                    file_size_kb, created_at, created_by, last_updated
-                ) VALUES (
+                    file_size_kb, file_content,
+                    created_at, created_by, last_updated
+                    )VALUES (
                     {esc(record.get("diagnostic_id"))},
                     {esc(record.get("patient_id"))},
                     {esc(record.get("diagnostic_type"))},
@@ -187,12 +184,14 @@ def insert_diagnostic(record: dict) -> bool:
                     {esc(record.get("file_path"))},
                     {esc(record.get("file_type"))},
                     {record.get("file_size_kb", 0)},
+                    {esc(file_content)},
                     current_timestamp(),
-                    {esc(record.get("created_by", "patient"))},
+                     {esc(record.get("created_by", "patient"))},
                     current_timestamp()
                 )
             """)
-    return diagnostic_id
+
+    return record["diagnostic_id"]
 
 
 # ── Insert structured lab values ───────────────────────────────────────────────
