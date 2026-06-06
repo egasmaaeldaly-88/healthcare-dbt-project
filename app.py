@@ -434,6 +434,7 @@ if st.session_state.role == "patient":
             else:
                 with st.spinner("Checking registration…"):
                     try:
+                        # نفحص بالـ National ID لمنع التسجيل المكرر لنفس الشخص
                         already_exists = patient_exists(
                             reg_national_id.strip()
                         )
@@ -458,16 +459,24 @@ if st.session_state.role == "patient":
                     }
                     with st.spinner("Registering…"):
                         try:
-                            register_patient(patient_data)
+                            # 1. استدعاء الدالة وحفظ الـ UUID المتولد في متغير
+                            new_uuid = register_patient(patient_data)
+                            
+                            # 2. عرض رسالة النجاح مع المعرف الفريد الحقيقي
                             st.success(
                                 f"✅ **{reg_first_name} {reg_last_name}** "
                                 f"registered successfully!\n\n"
-                                f"Patient ID: `{reg_national_id.strip()}`"
+                                f"📌 **Important:** Save your System Patient ID for logins and vitals:\n"
+                                f"`{new_uuid}`"
                             )
+                            
+                            # 3. تنظيف الكاش لتحديث شاشة الطبيب فورًا
+                            if "load_doctor_dashboard" in globals():
+                                load_doctor_dashboard.clear()
+                                
                             st.balloons()
                         except Exception as e:
                             st.error(f"Registration failed: {e}")
-
     # ── Tab 3: Bulk CSV Upload ─────────────────────────────────────────────────
     with tab_upload:
         st.subheader("Bulk Patient Upload via CSV")
