@@ -90,7 +90,7 @@ def load_doctor_dashboard() -> pd.DataFrame:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT * FROM workspace.default.vw_doctor_dashboard"
+                "SELECT * FROM workspace.gold.gold_doctor_dashboard"
             )
             return pd.DataFrame(
                 cur.fetchall(),
@@ -103,7 +103,7 @@ def load_vitals_timeseries(patient_id: str | None = None) -> pd.DataFrame:
         with conn.cursor() as cur:
             query = """
                 SELECT * FROM
-                workspace.default.vw_patient_vitals_timeseries
+                workspace.silver.silver_vitals
             """
             if patient_id:
                 query += f" WHERE patient_id = '{patient_id}'"
