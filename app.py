@@ -20,6 +20,7 @@ from utils.diagnostics_utils import (
     load_patient_diagnostics,
     load_all_diagnostics,
     load_lab_results,
+    load_file_content,
     load_diagnostic_stats,
 )
 

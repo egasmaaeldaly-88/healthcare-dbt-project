@@ -33,7 +33,7 @@ def get_connection():
     return dbsql.connect(**connect_args)
 
 
-# ── Diagnostic types and their subtypes ───────────────────────────────────────
+# ── Diagnostic types ───────────────────────────────────────────────────────────
 DIAGNOSTIC_TYPES = {
     "LAB": [
         "Complete Blood Count (CBC)",
@@ -126,6 +126,9 @@ RESULT_STATUSES = ["PENDING", "NORMAL", "ABNORMAL", "CRITICAL"]
 
 # Max file size: 4MB (base64 overhead ~33%)
 MAX_FILE_SIZE_MB = 4
+
+
+# ── Encode uploaded file to base64 ────────────────────────────────────────────
 def encode_file_to_base64(uploaded_file) -> tuple[str, float, str]:
     """
     Encodes uploaded file to base64 string for storage in Delta.
@@ -143,53 +146,62 @@ def encode_file_to_base64(uploaded_file) -> tuple[str, float, str]:
 
     base64_str = base64.b64encode(file_bytes).decode("utf-8")
     file_type  = uploaded_file.name.split(".")[-1].upper()
+
     return base64_str, file_size_kb, file_type
+
+
 # ── Decode base64 back to bytes for download ───────────────────────────────────
 def decode_base64_to_bytes(base64_str: str) -> bytes:
     return base64.b64decode(base64_str.encode("utf-8"))
+
+
+# ── Insert diagnostic record ───────────────────────────────────────────────────
 def insert_diagnostic(record: dict) -> str:
     """
-    Inserts a new diagnostic record into the database.
-    Returns the generated diagnostic_id.
+    Inserts diagnostic record with optional base64 file content.
+    Returns the diagnostic_id.
     """
-    # 1. Generate the ID
-    diagnostic_id = str(uuid.uuid4())
-    
-    # 2. Define the Query
-    query = f"""
-        INSERT INTO workspace.healthcare_platform.diagnostic_records (
-            diagnostic_id, patient_id, diagnostic_type, diagnostic_name,
-            diagnostic_date, result_summary, result_status, ordering_doctor,
-            performing_lab, notes, file_name, file_path, file_type,
-            file_size_kb, created_at, created_by, last_updated
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(), ?, current_timestamp())
-    """
-    
-    # 3. Safely map parameters
-    params = (
-        diagnostic_id,
-        record.get("patient_id"),
-        record.get("diagnostic_type"),
-        record.get("diagnostic_name"),
-        record.get("diagnostic_date"),
-        record.get("result_summary"),
-        record.get("result_status", "PENDING"),
-        record.get("ordering_doctor"),
-        record.get("performing_lab"),
-        record.get("notes"),
-        record.get("file_name"),
-        record.get("file_path"),
-        record.get("file_type"),
-        record.get("file_size_kb", 0),
-        record.get("created_by", "patient")
-    )
+    def esc(val):
+        if val is None:
+            return "NULL"
+        return f"'{str(val).replace(chr(39), chr(39)*2)}'"
 
-    # 4. Execute
+    # file_content can be very long — handle separately
+    file_content = record.get("file_content")
+
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(query, params)
-            
-    return diagnostic_id
+            cur.execute(f"""
+                INSERT INTO worksapce.healthcare_platform.diagnostic_records (
+                    diagnostic_id, patient_id, diagnostic_type,
+                    diagnostic_name, diagnostic_date, result_summary,
+                    result_status, ordering_doctor, performing_lab,
+                    notes, file_name, file_path, file_type,
+                    file_size_kb, file_content,
+                    created_at, created_by, last_updated
+                ) VALUES (
+                    {esc(record.get("diagnostic_id"))},
+                    {esc(record.get("patient_id"))},
+                    {esc(record.get("diagnostic_type"))},
+                    {esc(record.get("diagnostic_name"))},
+                    {esc(record.get("diagnostic_date"))},
+                    {esc(record.get("result_summary"))},
+                    {esc(record.get("result_status", "PENDING"))},
+                    {esc(record.get("ordering_doctor"))},
+                    {esc(record.get("performing_lab"))},
+                    {esc(record.get("notes"))},
+                    {esc(record.get("file_name"))},
+                    {esc(record.get("file_path"))},
+                    {esc(record.get("file_type"))},
+                    {record.get("file_size_kb", 0)},
+                    {esc(file_content)},
+                    current_timestamp(),
+                    {esc(record.get("created_by", "patient"))},
+                    current_timestamp()
+                )
+            """)
+
+    return record["diagnostic_id"]
 
 
 # ── Insert structured lab values ───────────────────────────────────────────────
@@ -198,22 +210,25 @@ def insert_lab_values(
     patient_id: str,
     lab_rows: list[dict]
 ) -> bool:
-    """
-    Inserts individual lab test values for a lab diagnostic.
-    """
     with get_connection() as conn:
         with conn.cursor() as cur:
             for row in lab_rows:
+                if not row.get("name"):
+                    continue
                 is_abnormal = (
                     row.get("value") is not None and (
                         (row.get("ref_min") is not None and
-                         row["value"] < row["ref_min"]) or
+                         float(row["value"]) < float(row["ref_min"])) or
                         (row.get("ref_max") is not None and
-                         row["value"] > row["ref_max"])
+                         float(row["value"]) > float(row["ref_max"]))
                     )
                 )
+                val     = row["value"]     if row.get("value")     is not None else "NULL"
+                ref_min = row["ref_min"]   if row.get("ref_min")   is not None else "NULL"
+                ref_max = row["ref_max"]   if row.get("ref_max")   is not None else "NULL"
+
                 cur.execute(f"""
-                    INSERT INTO workspace.healthcare_platform.lab_results (
+                    INSERT INTO worksapce.healthcare_platform.lab_results (
                         lab_result_id, diagnostic_id, patient_id,
                         test_name, test_value, test_unit,
                         reference_min, reference_max,
@@ -223,18 +238,35 @@ def insert_lab_values(
                         '{diagnostic_id}',
                         '{patient_id}',
                         '{row["name"].replace("'", "''")}',
-                        {row["value"] if row.get("value") is not None
-                         else "NULL"},
+                        {val},
                         '{row.get("unit", "").replace("'", "''")}',
-                        {row["ref_min"] if row.get("ref_min") is not None
-                         else "NULL"},
-                        {row["ref_max"] if row.get("ref_max") is not None
-                         else "NULL"},
+                        {ref_min},
+                        {ref_max},
                         {str(is_abnormal).upper()},
                         current_timestamp()
                     )
                 """)
     return True
+
+
+# ── Load file content for download ────────────────────────────────────────────
+@st.cache_data(ttl=300, show_spinner=False)
+def load_file_content(diagnostic_id: str) -> tuple[str, str, str]:
+    """
+    Returns (base64_content, file_name, file_type) for a diagnostic.
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT file_content, file_name, file_type
+                FROM workspace.healthcare_platform.diagnostic_records
+                WHERE diagnostic_id = '{diagnostic_id}'
+                  AND file_content IS NOT NULL
+            """)
+            row = cur.fetchone()
+            if row:
+                return row[0], row[1], row[2]
+            return None, None, None
 
 
 # ── Load patient diagnostics ───────────────────────────────────────────────────
@@ -254,9 +286,10 @@ def load_patient_diagnostics(patient_id: str) -> pd.DataFrame:
                     performing_lab,
                     file_name,
                     file_type,
+                    file_size_kb,
                     notes,
                     created_at
-                FROM workspace.healthcare_platform.diagnostic_records
+                FROM worksapce.healthcare_platform.diagnostic_records
                 WHERE patient_id = '{patient_id}'
                 ORDER BY diagnostic_date DESC, created_at DESC
             """)
@@ -288,7 +321,7 @@ def load_all_diagnostics(
                 if where_clauses else ""
             )
             cur.execute(f"""
-                SELECT * FROM workspace.healthcare_platform.vw_patient_diagnostics
+                SELECT * FROM worksapce.healthcare_platform.vw_patient_diagnostics
                 {where}
                 LIMIT 500
             """)
@@ -298,7 +331,7 @@ def load_all_diagnostics(
             )
 
 
-# ── Load lab results for a diagnostic ─────────────────────────────────────────
+# ── Load lab results ───────────────────────────────────────────────────────────
 @st.cache_data(ttl=60, show_spinner=False)
 def load_lab_results(diagnostic_id: str) -> pd.DataFrame:
     with get_connection() as conn:
@@ -322,7 +355,7 @@ def load_lab_results(diagnostic_id: str) -> pd.DataFrame:
             )
 
 
-# ── Diagnostic summary stats ───────────────────────────────────────────────────
+# ── Diagnostic stats ───────────────────────────────────────────────────────────
 @st.cache_data(ttl=120, show_spinner=False)
 def load_diagnostic_stats() -> pd.DataFrame:
     with get_connection() as conn:
@@ -330,11 +363,11 @@ def load_diagnostic_stats() -> pd.DataFrame:
             cur.execute("""
                 SELECT
                     diagnostic_type,
-                    COUNT(*)                            AS total,
+                    COUNT(*)                                    AS total,
                     COUNT_IF(result_status = 'ABNORMAL'
-                          OR result_status = 'CRITICAL') AS abnormal_count,
-                    COUNT_IF(result_status = 'PENDING')  AS pending_count,
-                    MAX(diagnostic_date)                AS latest_date
+                          OR result_status = 'CRITICAL')        AS abnormal_count,
+                    COUNT_IF(result_status = 'PENDING')         AS pending_count,
+                    MAX(diagnostic_date)                        AS latest_date
                 FROM workspace.healthcare_platform.diagnostic_records
                 GROUP BY diagnostic_type
                 ORDER BY total DESC
