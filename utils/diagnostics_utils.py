@@ -172,7 +172,7 @@ def insert_diagnostic(record: dict) -> str:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(f"""
-                INSERT INTO worksapce.healthcare_platform.diagnostic_records (
+                INSERT INTO workspace.healthcare_platform.diagnostic_records (
                     diagnostic_id, patient_id, diagnostic_type,
                     diagnostic_name, diagnostic_date, result_summary,
                     result_status, ordering_doctor, performing_lab,
@@ -228,7 +228,7 @@ def insert_lab_values(
                 ref_max = row["ref_max"]   if row.get("ref_max")   is not None else "NULL"
 
                 cur.execute(f"""
-                    INSERT INTO worksapce.healthcare_platform.lab_results (
+                    INSERT INTO workspace.healthcare_platform.lab_results (
                         lab_result_id, diagnostic_id, patient_id,
                         test_name, test_value, test_unit,
                         reference_min, reference_max,
@@ -289,7 +289,7 @@ def load_patient_diagnostics(patient_id: str) -> pd.DataFrame:
                     file_size_kb,
                     notes,
                     created_at
-                FROM worksapce.healthcare_platform.diagnostic_records
+                FROM workspace.healthcare_platform.diagnostic_records
                 WHERE patient_id = '{patient_id}'
                 ORDER BY diagnostic_date DESC, created_at DESC
             """)
@@ -321,7 +321,7 @@ def load_all_diagnostics(
                 if where_clauses else ""
             )
             cur.execute(f"""
-                SELECT * FROM worksapce.healthcare_platform.vw_patient_diagnostics
+                SELECT * FROM workspace.healthcare_platform.vw_patient_diagnostics
                 {where}
                 LIMIT 500
             """)
