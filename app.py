@@ -569,137 +569,166 @@ if st.session_state.role == "patient":
             "➕ Add New Diagnostic",
             "📂 View My Records"
         ])
-        # Add below the diagnostics dataframe in View My Records tab
-
-st.divider()
-st.markdown("**Download a Report**")
-download_diag_id = st.text_input(
-    "Enter Diagnostic ID to download report:",
-    placeholder="Paste from table above",
-    key="download_diag_id"
-)
-
-if download_diag_id:
-    with st.spinner("Loading file…"):
-        content_b64, fname, ftype = load_file_content(
-            download_diag_id.strip()
-        )
-
-    if content_b64:
-        file_bytes = decode_base64_to_bytes(content_b64)
-
-        mime_map = {
-            "PDF":  "application/pdf",
-            "JPG":  "image/jpeg",
-            "JPEG": "image/jpeg",
-            "PNG":  "image/png",
-        }
-        mime = mime_map.get(ftype, "application/octet-stream")
-
-        # Show image preview for image files
-        if ftype in ("JPG", "JPEG", "PNG"):
-            st.image(
-                file_bytes,
-                caption=fname,
-                use_column_width=True
-            )
-
-        st.download_button(
-            label=f"⬇️ Download {fname}",
-            data=file_bytes,
-            file_name=fname,
-            mime=mime
-        )
-    else:
-        st.info("No file attached to this diagnostic record.")
 
         # ── Add new diagnostic ─────────────────────────────────────────────────
         with diag_sub1:
-            with st.form("diagnostic_form"):
-                st.markdown("**Patient & Diagnostic Information**")
+            st.markdown("**Fill in the diagnostic details below:**")
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    diag_patient_id = st.text_input(
-                        "Patient ID *", 
-                        placeholder="Enter Patient ID (e.g., P-12345)",
-                        help="Use the system generated Patient ID"
+            col1, col2 = st.columns(2)
+            with col1:
+                diag_patient_id = st.text_input(
+                    "Your Patient ID (National ID) *",
+                    placeholder="14-digit number",
+                    key="diag_pid"
+                )
+                diag_type = st.selectbox(
+                    "Diagnostic Type *",
+                    list(DIAGNOSTIC_TYPES.keys()),
+                    key="diag_type"
+                )
+                diag_date = st.date_input(
+                    "Diagnostic Date *",
+                    value=datetime.today(),
+                    key="diag_date"
+                )
+                ordering_doc = st.text_input(
+                    "Ordering Doctor",
+                    placeholder="Dr. Ahmed Hassan",
+                    key="diag_doc"
+                )
+
+            with col2:
+                diag_name = st.selectbox(
+                    "Diagnostic Name *",
+                    DIAGNOSTIC_TYPES.get(
+                        st.session_state.get("diag_type", "LAB"),
+                        ["Other"]
+                    ),
+                    key="diag_name"
+                )
+                result_status = st.selectbox(
+                    "Result Status *",
+                    RESULT_STATUSES,
+                    key="diag_status"
+                )
+                performing_lab = st.text_input(
+                    "Lab / Facility Name",
+                    placeholder="Cairo University Hospital Lab",
+                    key="diag_lab"
+                )
+
+            result_summary = st.text_area(
+                "Result Summary / Findings",
+                placeholder="Enter the main findings or summary "
+                            "from the diagnostic report...",
+                height=100,
+                key="diag_summary"
+            )
+
+            notes = st.text_area(
+                "Additional Notes",
+                placeholder="Any additional notes or comments...",
+                height=80,
+                key="diag_notes"
+            )
+
+            st.divider()
+            st.markdown("**Upload Report File (Optional — max 4MB)**")
+            uploaded_diag_file = st.file_uploader(
+                "Upload report (PDF, JPG, PNG)",
+                type=["pdf", "jpg", "jpeg", "png"],
+                key="diag_file"
+            )
+
+            # Show file preview if image
+            if uploaded_diag_file:
+                fext = uploaded_diag_file.name.split(".")[-1].lower()
+                if fext in ("jpg", "jpeg", "png"):
+                    st.image(
+                        uploaded_diag_file,
+                        caption=uploaded_diag_file.name,
+                        width=300
                     )
-                    diag_type = st.selectbox(
-                        "Diagnostic Type *",
-                        list(DIAGNOSTIC_TYPES.keys())
-                    )
-                    diag_date = st.date_input(
-                        "Diagnostic Date *",
-                        value=datetime.today()
-                    )
-                    ordering_doc = st.text_input(
-                        "Ordering Doctor",
-                        placeholder="Dr. Ahmed Hassan"
+                else:
+                    st.info(
+                        f"📄 File ready: {uploaded_diag_file.name} "
+                        f"({uploaded_diag_file.size / 1024:.1f} KB)"
                     )
 
-                with col2:
-                    # Dynamic subtype based on selected type
-                    diag_name = st.selectbox(
-                        "Diagnostic Name *",
-                        DIAGNOSTIC_TYPES.get(
-                            diag_type,
-                            ["Other"]
+            st.divider()
+
+            # Structured lab values
+            st.markdown("**Structured Lab Values (optional)**")
+            add_lab_values = st.checkbox(
+                "Add individual lab test values with reference ranges",
+                value=False,
+                key="add_lab_vals"
+            )
+
+            if add_lab_values:
+                if "lab_rows" not in st.session_state:
+                    st.session_state.lab_rows = [
+                        {"name": "", "value": 0.0,
+                         "unit": "", "ref_min": 0.0, "ref_max": 0.0}
+                    ]
+
+                for i, row in enumerate(st.session_state.lab_rows):
+                    cols = st.columns([3, 2, 1, 1, 1])
+                    with cols[0]:
+                        row["name"] = st.text_input(
+                            "Test Name",
+                            value=row["name"],
+                            key=f"ln_{i}",
+                            placeholder="e.g. Hemoglobin"
                         )
+                    with cols[1]:
+                        row["value"] = st.number_input(
+                            "Value",
+                            value=float(row["value"]),
+                            key=f"lv_{i}",
+                            step=0.01
+                        )
+                    with cols[2]:
+                        row["unit"] = st.text_input(
+                            "Unit",
+                            value=row["unit"],
+                            key=f"lu_{i}",
+                            placeholder="g/dL"
+                        )
+                    with cols[3]:
+                        row["ref_min"] = st.number_input(
+                            "Min",
+                            value=float(row["ref_min"]),
+                            key=f"lmin_{i}",
+                            step=0.01
+                        )
+                    with cols[4]:
+                        row["ref_max"] = st.number_input(
+                            "Max",
+                            value=float(row["ref_max"]),
+                            key=f"lmax_{i}",
+                            step=0.01
+                        )
+
+                if st.button("➕ Add another test row"):
+                    st.session_state.lab_rows.append(
+                        {"name": "", "value": 0.0,
+                         "unit": "", "ref_min": 0.0, "ref_max": 0.0}
                     )
-                    result_status = st.selectbox(
-                        "Result Status *",
-                        RESULT_STATUSES
-                    )
-                    performing_lab = st.text_input(
-                        "Lab / Facility Name",
-                        placeholder="Cairo University Hospital Lab"
-                    )
+                    st.rerun()
 
-                result_summary = st.text_area(
-                    "Result Summary / Findings",
-                    placeholder="Enter the main findings or summary "
-                                "from the diagnostic report...",
-                    height=100
-                )
-                notes = st.text_area(
-                    "Additional Notes",
-                    placeholder="Any additional notes or comments...",
-                    height=80
-                )
+            st.divider()
 
-                st.divider()
-                st.markdown("**Upload Report File (Optional)**")
-                uploaded_diag_file = st.file_uploader(
-                    "Upload report (PDF, JPG, PNG)",
-                    type=["pdf", "jpg", "jpeg", "png"],
-                    help="Max file size 10MB"
-                )
+            # Submit button
+            if st.button("💾 Save Diagnostic Record", type="primary",
+                         key="save_diag_btn"):
 
-                # Structured lab values for LAB type
-                st.divider()
-                add_lab_values = st.checkbox(
-                    "Add structured lab values",
-                    value=(diag_type == "LAB")
-                )
-
-                submit_diag = st.form_submit_button(
-                    "💾 Save Diagnostic Record",
-                    type="primary"
-                )
-
-            # Handle submission outside form
-            # Handle submission outside form
-            if submit_diag:
                 errors = []
-
-                # التحقق الجديد
-                if not diag_patient_id.strip():
-                    errors.append("Patient ID is required.")
-                elif not patient_exists(diag_patient_id.strip()):
-                    errors.append("Patient ID not found. Please check the ID.")
-                
-                # التحقق من اسم التشخيص
+                id_valid, id_reason = validate_national_id(
+                    diag_patient_id.strip()
+                )
+                if not id_valid:
+                    errors.append(id_reason)
                 if not diag_name:
                     errors.append("Diagnostic name is required.")
 
@@ -709,162 +738,105 @@ if download_diag_id:
                 else:
                     with st.spinner("Saving diagnostic record…"):
                         try:
-                            # 1. Prepare your data dictionary here
+                            diag_id_temp = str(uuid.uuid4())
+                            file_content = None
+                            file_name    = None
+                            file_type    = None
+                            file_size_kb = 0.0
+
+                            if uploaded_diag_file:
+                                file_content, file_size_kb, file_type = \
+                                    encode_file_to_base64(uploaded_diag_file)
+                                file_name = uploaded_diag_file.name
+
                             record = {
-                                "patient_id": patient_id, # Ensure this exists
+                                "diagnostic_id":   diag_id_temp,
+                                "patient_id":      diag_patient_id.strip(),
                                 "diagnostic_type": diag_type,
                                 "diagnostic_name": diag_name,
-                                "diagnostic_date": diag_date,
-                                "result_summary": result_summary,
-                                "result_status": result_status,
-                                "ordering_doctor": doctor_name,
-                                "performing_lab": lab_name,
-                                "notes": notes,
-                                "file_name": uploaded_file.name if uploaded_file else None,
-                                "file_path": file_path if uploaded_file else None,
-                                "file_type": file_type if uploaded_file else None,
-                                "file_size_kb": file_size_kb if uploaded_file else 0,
-                                "created_by": st.session_state.get("user_id", "patient")
+                                "diagnostic_date": str(diag_date),
+                                "result_summary":  result_summary or None,
+                                "result_status":   result_status,
+                                "ordering_doctor": ordering_doc or None,
+                                "performing_lab":  performing_lab or None,
+                                "notes":           notes or None,
+                                "file_name":       file_name,
+                                "file_path":       None,
+                                "file_type":       file_type,
+                                "file_size_kb":    file_size_kb,
+                                "file_content":    file_content,
+                                "created_by":      "patient",
                             }
 
-                            # 2. Now call the function with the defined dictionary
                             diagnostic_id = insert_diagnostic(record)
 
-                            st.success(
-                                f"✅ Diagnostic record saved successfully!\n\n"
-                                f"Record ID: `{diagnostic_id}`"
-                            )
-                        except Exception as e:
-                            st.error(f"Failed to save: {e}")
-
-            # ── Structured lab values entry ────────────────────────────────────
-            if add_lab_values and diag_type == "LAB":
-                st.divider()
-                st.markdown("**Enter Lab Test Values**")
-                st.caption(
-                    "Add individual test results with reference ranges"
-                )
-
-                # Dynamic lab value entry
-                if "lab_rows" not in st.session_state:
-                    st.session_state.lab_rows = [
-                        {"name": "", "value": None,
-                         "unit": "", "ref_min": None,
-                         "ref_max": None}
-                    ]
-
-                for i, row in enumerate(st.session_state.lab_rows):
-                    col1, col2, col3, col4, col5 = st.columns(
-                        [3, 2, 1, 1, 1]
-                    )
-                    with col1:
-                        row["name"] = st.text_input(
-                            "Test Name",
-                            value=row["name"],
-                            key=f"lab_name_{i}",
-                            placeholder="e.g. Hemoglobin"
-                        )
-                    with col2:
-                        row["value"] = st.number_input(
-                            "Value",
-                            value=row["value"] or 0.0,
-                            key=f"lab_val_{i}",
-                            step=0.01
-                        )
-                    with col3:
-                        row["unit"] = st.text_input(
-                            "Unit",
-                            value=row["unit"],
-                            key=f"lab_unit_{i}",
-                            placeholder="g/dL"
-                        )
-                    with col4:
-                        row["ref_min"] = st.number_input(
-                            "Ref Min",
-                            value=row["ref_min"] or 0.0,
-                            key=f"lab_min_{i}",
-                            step=0.01
-                        )
-                    with col5:
-                        row["ref_max"] = st.number_input(
-                            "Ref Max",
-                            value=row["ref_max"] or 0.0,
-                            key=f"lab_max_{i}",
-                            step=0.01
-                        )
-
-                col_add, col_save = st.columns(2)
-                with col_add:
-                    if st.button("➕ Add another test"):
-                        st.session_state.lab_rows.append({
-                            "name": "", "value": None,
-                            "unit": "", "ref_min": None,
-                            "ref_max": None
-                        })
-                        st.rerun()
-
-                with col_save:
-                    if st.button(
-                        "💾 Save Lab Values",
-                        type="primary"
-                    ):
-                        if diagnostic_id:
-                            with st.spinner("Saving lab values…"):
-                                try:
+                            # Save lab values if entered
+                            if add_lab_values and \
+                               "lab_rows" in st.session_state:
+                                valid_lab_rows = [
+                                    r for r in st.session_state.lab_rows
+                                    if r.get("name")
+                                ]
+                                if valid_lab_rows:
                                     insert_lab_values(
                                         diagnostic_id,
                                         diag_patient_id.strip(),
-                                        st.session_state.lab_rows
+                                        valid_lab_rows
                                     )
-                                    st.success(
-                                        "✅ Lab values saved!"
-                                    )
-                                    st.session_state.lab_rows = []
-                                except Exception as e:
-                                    st.error(
-                                        f"Failed to save lab values: {e}"
-                                    )
+
+                            load_patient_diagnostics.clear()
+                            load_diagnostic_stats.clear()
+
+                            st.success(
+                                f"✅ Diagnostic record saved!\n\n"
+                                f"Record ID: `{diagnostic_id}`"
+                            )
+                            st.balloons()
+
+                            # Reset lab rows
+                            if "lab_rows" in st.session_state:
+                                del st.session_state["lab_rows"]
+
+                        except Exception as e:
+                            st.error(f"Failed to save: {e}")
 
         # ── View my records ────────────────────────────────────────────────────
         with diag_sub2:
+            st.markdown("**Enter your Patient ID to view your records:**")
+
             view_patient_id = st.text_input(
-                "Enter your Patient ID to view records:",
-                placeholder="e.g., P-12345",
-                key="view_diag_patient_id"
+                "Patient ID",
+                placeholder="14-digit National ID",
+                key="view_diag_pid"
             )
 
-            # التحقق الجديد: التأكد من وجود نص، ثم جلب البيانات
-            if view_patient_id and view_patient_id.strip():
-                with st.spinner("Loading your records…"):
-                    # نقوم بجلب البيانات مباشرة باستخدام الـ ID
-                    diag_df = load_patient_diagnostics(
-                        view_patient_id.strip()
-                    )
-                    
-                    # اختيارياً: التحقق إذا كان الـ DataFrame فارغاً لعرض رسالة للمستخدم
-                    if diag_df.empty:
-                        st.info("No records found for this Patient ID.")
-                    else:
-                        st.dataframe(diag_df) # أو أي طريقة عرض تستخدمينها
+            if view_patient_id:
+                is_valid, _ = validate_national_id(
+                    view_patient_id.strip()
+                )
+                if not is_valid:
+                    st.error("Please enter a valid 14-digit National ID.")
+                else:
+                    with st.spinner("Loading your records…"):
+                        diag_df = load_patient_diagnostics(
+                            view_patient_id.strip()
+                        )
 
                     if diag_df.empty:
                         st.info(
-                            "No diagnostic records found. "
-                            "Add your first record above."
+                            "No diagnostic records found for this ID. "
+                            "Add your first record in the "
+                            "'Add New Diagnostic' tab."
                         )
                     else:
                         # KPI row
                         col1, col2, col3, col4 = st.columns(4)
-                        col1.metric(
-                            "Total Records", len(diag_df)
-                        )
+                        col1.metric("Total Records",  len(diag_df))
                         col2.metric(
-                            "Abnormal",
-                            len(diag_df[
-                                diag_df["result_status"].isin(
-                                    ["ABNORMAL", "CRITICAL"]
-                                )
-                            ])
+                            "Abnormal / Critical",
+                            len(diag_df[diag_df["result_status"].isin(
+                                ["ABNORMAL", "CRITICAL"]
+                            )])
                         )
                         col3.metric(
                             "Pending",
@@ -873,7 +845,7 @@ if download_diag_id:
                             ])
                         )
                         col4.metric(
-                            "Types",
+                            "Diagnostic Types",
                             diag_df["diagnostic_type"].nunique()
                         )
 
@@ -882,14 +854,18 @@ if download_diag_id:
                         # Color code status
                         def color_diag_status(val):
                             colors = {
-                                "NORMAL":   "color: #1D9E75; font-weight:500",
-                                "ABNORMAL": "color: #EF9F27; font-weight:500",
-                                "CRITICAL": "color: #E24B4A; font-weight:500",
-                                "PENDING":  "color: #888; font-weight:500",
+                                "NORMAL":
+                                    "color: #1D9E75; font-weight:500",
+                                "ABNORMAL":
+                                    "color: #EF9F27; font-weight:500",
+                                "CRITICAL":
+                                    "color: #E24B4A; font-weight:500",
+                                "PENDING":
+                                    "color: #888888; font-weight:500",
                             }
                             return colors.get(val, "")
 
-                        styled = diag_df.style.applymap(
+                        styled = diag_df.style.map(
                             color_diag_status,
                             subset=["result_status"]
                         )
@@ -899,13 +875,89 @@ if download_diag_id:
                             hide_index=True
                         )
 
-                        # Download records
                         st.download_button(
                             "⬇️ Export My Records",
                             data=diag_df.to_csv(index=False),
-                            file_name=f"diagnostics_{view_patient_id}.csv",
+                            file_name=f"my_diagnostics.csv",
                             mime="text/csv"
-                        )                    
+                        )
+
+                        # ── Download a specific report file ────────────────────
+                        st.divider()
+                        st.markdown("**Download a Report File**")
+
+                        # Show only records that have files
+                        records_with_files = diag_df[
+                            diag_df["file_name"].notna()
+                        ]
+
+                        if records_with_files.empty:
+                            st.info(
+                                "No files attached to your records yet."
+                            )
+                        else:
+                            selected_record = st.selectbox(
+                                "Select a record to download:",
+                                options=records_with_files[
+                                    "diagnostic_id"
+                                ].tolist(),
+                                format_func=lambda did: (
+                                    records_with_files[
+                                        records_with_files[
+                                            "diagnostic_id"
+                                        ] == did
+                                    ].iloc[0]["diagnostic_name"]
+                                    + " — "
+                                    + str(records_with_files[
+                                        records_with_files[
+                                            "diagnostic_id"
+                                        ] == did
+                                    ].iloc[0]["diagnostic_date"])
+                                ),
+                                key="dl_record_select"
+                            )
+
+                            if selected_record:
+                                with st.spinner("Loading file…"):
+                                    content_b64, fname, ftype = \
+                                        load_file_content(selected_record)
+
+                                if content_b64:
+                                    file_bytes = decode_base64_to_bytes(
+                                        content_b64
+                                    )
+
+                                    # Show image preview
+                                    if ftype in ("JPG", "JPEG", "PNG"):
+                                        st.image(
+                                            file_bytes,
+                                            caption=fname,
+                                            use_column_width=True
+                                        )
+
+                                    mime_map = {
+                                        "PDF":  "application/pdf",
+                                        "JPG":  "image/jpeg",
+                                        "JPEG": "image/jpeg",
+                                        "PNG":  "image/png",
+                                    }
+                                    mime = mime_map.get(
+                                        ftype,
+                                        "application/octet-stream"
+                                    )
+
+                                    st.download_button(
+                                        label=f"⬇️ Download {fname}",
+                                        data=file_bytes,
+                                        file_name=fname,
+                                        mime=mime,
+                                        key="dl_btn"
+                                    )
+                                else:
+                                    st.info(
+                                        "No file attached to "
+                                        "this record."
+                                    )                  
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1346,9 +1398,9 @@ elif st.session_state.role == "doctor":
                     use_container_width=True,
                     hide_index=True
                 )
-    # ── Tab 6: Doctor Diagnostics View ────────────────────────────────────────
+# ── Tab 6: Doctor Diagnostics View ────────────────────────────────────────
     with tab_diag:
-        st.subheader("Patient Diagnostics Overview")
+        st.subheader("Patient Diagnostics")
 
         diag_doc1, diag_doc2, diag_doc3 = st.tabs([
             "📊 Overview",
@@ -1356,39 +1408,43 @@ elif st.session_state.role == "doctor":
             "➕ Add for Patient"
         ])
 
-        # ── Overview ───────────────────────────────────────────────────────────
+        # ── Tab: Overview ──────────────────────────────────────────────────────
         with diag_doc1:
             stats_df = load_diagnostic_stats()
 
             if stats_df.empty:
-                st.info("No diagnostic records yet.")
+                st.info(
+                    "No diagnostic records yet. "
+                    "Add records using the other tabs."
+                )
             else:
-                total_diag     = stats_df["total"].sum()
-                total_abnormal = stats_df["abnormal_count"].sum()
-                total_pending  = stats_df["pending_count"].sum()
+                total_diag     = int(stats_df["total"].sum())
+                total_abnormal = int(stats_df["abnormal_count"].sum())
+                total_pending  = int(stats_df["pending_count"].sum())
 
                 col1, col2, col3 = st.columns(3)
-                col1.metric("Total Diagnostics",  f"{total_diag:,}")
+                col1.metric("Total Diagnostics",   f"{total_diag:,}")
                 col2.metric("Abnormal / Critical", f"{total_abnormal:,}")
                 col3.metric("Pending Results",     f"{total_pending:,}")
 
                 st.divider()
 
-                # Bar chart by type
-                fig = px.bar(
+                # Chart by type
+                fig_diag = px.bar(
                     stats_df,
                     x="diagnostic_type",
                     y="total",
                     color="abnormal_count",
                     title="Diagnostics by Type",
                     labels={
-                        "diagnostic_type":  "Type",
-                        "total":            "Total",
-                        "abnormal_count":   "Abnormal"
+                        "diagnostic_type": "Type",
+                        "total":           "Total Records",
+                        "abnormal_count":  "Abnormal Count"
                     },
                     color_continuous_scale="Reds"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                fig_diag.update_layout(margin=dict(t=40, b=20))
+                st.plotly_chart(fig_diag, use_container_width=True)
 
                 st.dataframe(
                     stats_df.rename(columns={
@@ -1396,214 +1452,433 @@ elif st.session_state.role == "doctor":
                         "total":            "Total",
                         "abnormal_count":   "Abnormal",
                         "pending_count":    "Pending",
-                        "latest_date":      "Latest"
+                        "latest_date":      "Latest Date"
                     }),
                     use_container_width=True,
                     hide_index=True
                 )
 
-        # ── Browse all records ─────────────────────────────────────────────────
+        # ── Tab: Browse Records ────────────────────────────────────────────────
         with diag_doc2:
             col1, col2 = st.columns(2)
             with col1:
                 type_filter = st.selectbox(
-                    "Filter by type:",
-                    ["ALL"] + list(DIAGNOSTIC_TYPES.keys())
+                    "Filter by diagnostic type:",
+                    ["ALL"] + list(DIAGNOSTIC_TYPES.keys()),
+                    key="doc_type_filter"
                 )
             with col2:
                 status_filter = st.selectbox(
-                    "Filter by status:",
-                    ["ALL"] + RESULT_STATUSES
+                    "Filter by result status:",
+                    ["ALL"] + RESULT_STATUSES,
+                    key="doc_status_filter"
                 )
 
-            all_diag_df = load_all_diagnostics(
-                type_filter, status_filter
-            )
+            with st.spinner("Loading records…"):
+                all_diag_df = load_all_diagnostics(
+                    type_filter, status_filter
+                )
 
             if all_diag_df.empty:
                 st.info("No records match the selected filters.")
             else:
                 st.markdown(
-                    f"Showing **{len(all_diag_df)}** records"
+                    f"Showing **{len(all_diag_df):,}** records"
                 )
+
+                # Color code status
+                def color_doc_status(val):
+                    colors = {
+                        "NORMAL":   "color: #1D9E75; font-weight:500",
+                        "ABNORMAL": "color: #EF9F27; font-weight:500",
+                        "CRITICAL": "color: #E24B4A; font-weight:500",
+                        "PENDING":  "color: #888888; font-weight:500",
+                    }
+                    return colors.get(val, "")
+
+                styled_all = all_diag_df[[
+                    "full_name", "diagnostic_type",
+                    "diagnostic_name", "diagnostic_date",
+                    "result_status", "result_summary",
+                    "ordering_doctor", "performing_lab",
+                    "diagnostic_id"
+                ]].style.map(
+                    color_doc_status,
+                    subset=["result_status"]
+                )
+
                 st.dataframe(
-                    all_diag_df[[
-                        "full_name", "diagnostic_type",
-                        "diagnostic_name", "diagnostic_date",
-                        "result_status", "result_summary",
-                        "ordering_doctor", "performing_lab"
-                    ]],
+                    styled_all,
                     use_container_width=True,
                     hide_index=True
                 )
 
-                # Drill into lab results
-                st.divider()
-                st.markdown("**View Lab Values for a Record**")
-                diag_id_input = st.text_input(
-                    "Enter Diagnostic ID:",
-                    placeholder="Paste diagnostic_id from table above"
-                )
-                if diag_id_input:
-                    lab_df = load_lab_results(diag_id_input.strip())
-                    if lab_df.empty:
-                        st.info(
-                            "No structured lab values for this record."
-                        )
-                    else:
-                        def highlight_abnormal(row):
-                            if row.get("is_abnormal"):
-                                return [
-                                    "background-color: #fff3cd"
-                                ] * len(row)
-                            return [""] * len(row)
-
-                        styled_lab = lab_df.style.apply(
-                            highlight_abnormal, axis=1
-                        )
-                        st.dataframe(
-                            styled_lab,
-                            use_container_width=True,
-                            hide_index=True
-                        )
-
                 st.download_button(
-                    "⬇️ Export Records",
+                    "⬇️ Export All Records",
                     data=all_diag_df.to_csv(index=False),
                     file_name="all_diagnostics.csv",
-                    mime="text/csv"
+                    mime="text/csv",
+                    key="export_all_diag"
                 )
 
-        # ── Doctor adds diagnostic for a patient ───────────────────────────────
+                st.divider()
+
+                # ── Drill into a specific record ───────────────────────────────
+                st.markdown("**Drill into a Patient Record**")
+
+                records_with_files = all_diag_df[
+                    all_diag_df["file_name"].notna()
+                ]
+
+                col_left, col_right = st.columns(2)
+
+                with col_left:
+                    # View lab values
+                    st.markdown("*View structured lab values:*")
+                    lab_diag_id = st.text_input(
+                        "Enter Diagnostic ID for lab values:",
+                        placeholder="Paste from table above",
+                        key="lab_diag_id_input"
+                    )
+                    if lab_diag_id:
+                        with st.spinner("Loading lab values…"):
+                            lab_df = load_lab_results(
+                                lab_diag_id.strip()
+                            )
+                        if lab_df.empty:
+                            st.info(
+                                "No structured lab values "
+                                "for this record."
+                            )
+                        else:
+                            def highlight_abnormal(row):
+                                if row.get("is_abnormal"):
+                                    return [
+                                        "background-color: #fff3cd"
+                                    ] * len(row)
+                                return [""] * len(row)
+
+                            styled_lab = lab_df.style.apply(
+                                highlight_abnormal, axis=1
+                            )
+                            st.dataframe(
+                                styled_lab,
+                                use_container_width=True,
+                                hide_index=True
+                            )
+
+                with col_right:
+                    # Download report file
+                    st.markdown("*Download attached report:*")
+
+                    if records_with_files.empty:
+                        st.info("No records have attached files.")
+                    else:
+                        dl_record = st.selectbox(
+                            "Select record:",
+                            options=records_with_files[
+                                "diagnostic_id"
+                            ].tolist(),
+                            format_func=lambda did: (
+                                records_with_files[
+                                    records_with_files[
+                                        "diagnostic_id"
+                                    ] == did
+                                ].iloc[0]["full_name"]
+                                + " — "
+                                + records_with_files[
+                                    records_with_files[
+                                        "diagnostic_id"
+                                    ] == did
+                                ].iloc[0]["diagnostic_name"]
+                                + " ("
+                                + str(records_with_files[
+                                    records_with_files[
+                                        "diagnostic_id"
+                                    ] == did
+                                ].iloc[0]["diagnostic_date"])
+                                + ")"
+                            ),
+                            key="doc_dl_select"
+                        )
+
+                        if dl_record:
+                            with st.spinner("Loading file…"):
+                                content_b64, fname, ftype = \
+                                    load_file_content(dl_record)
+
+                            if content_b64:
+                                file_bytes = decode_base64_to_bytes(
+                                    content_b64
+                                )
+
+                                if ftype in ("JPG", "JPEG", "PNG"):
+                                    st.image(
+                                        file_bytes,
+                                        caption=fname,
+                                        use_column_width=True
+                                    )
+
+                                mime_map = {
+                                    "PDF":  "application/pdf",
+                                    "JPG":  "image/jpeg",
+                                    "JPEG": "image/jpeg",
+                                    "PNG":  "image/png",
+                                }
+                                mime = mime_map.get(
+                                    ftype,
+                                    "application/octet-stream"
+                                )
+                                st.download_button(
+                                    label=f"⬇️ Download {fname}",
+                                    data=file_bytes,
+                                    file_name=fname,
+                                    mime=mime,
+                                    key="doc_dl_btn"
+                                )
+                            else:
+                                st.info("No file for this record.")
+
+        # ── Tab: Add for Patient ───────────────────────────────────────────────
         with diag_doc3:
             st.markdown(
                 "Add a diagnostic record on behalf of a patient."
             )
 
-            with st.form("doctor_diagnostic_form"):
-                col1, col2 = st.columns(2)
+            col1, col2 = st.columns(2)
 
-                with col1:
-                    doc_patient_id = st.text_input(
-                        "Patient ID *",
-                        placeholder="14-digit National ID"
-                    )
-                    doc_diag_type = st.selectbox(
-                        "Diagnostic Type *",
-                        list(DIAGNOSTIC_TYPES.keys()),
-                        key="doc_diag_type"
-                    )
-                    doc_diag_date = st.date_input(
-                        "Diagnostic Date *",
-                        value=datetime.today(),
-                        key="doc_diag_date"
-                    )
-                    doc_ordering = st.text_input(
-                        "Ordering Doctor",
-                        placeholder="Dr. Sara Khalid",
-                        key="doc_ordering"
-                    )
+            with col1:
+                doc_patient_id = st.text_input(
+                    "Patient ID *",
+                    placeholder="14-digit National ID",
+                    key="doc_diag_pid"
+                )
+                doc_diag_type = st.selectbox(
+                    "Diagnostic Type *",
+                    list(DIAGNOSTIC_TYPES.keys()),
+                    key="doc_diag_type"
+                )
+                doc_diag_date = st.date_input(
+                    "Diagnostic Date *",
+                    value=datetime.today(),
+                    key="doc_diag_date"
+                )
+                doc_ordering = st.text_input(
+                    "Ordering Doctor",
+                    placeholder="Dr. Sara Khalid",
+                    key="doc_ordering"
+                )
 
-                with col2:
-                    doc_diag_name = st.selectbox(
-                        "Diagnostic Name *",
-                        DIAGNOSTIC_TYPES.get(
-                            doc_diag_type,
-                            ["Other"]
+            with col2:
+                doc_diag_name = st.selectbox(
+                    "Diagnostic Name *",
+                    DIAGNOSTIC_TYPES.get(
+                        st.session_state.get(
+                            "doc_diag_type", "LAB"
                         ),
-                        key="doc_diag_name"
-                    )
-                    doc_status = st.selectbox(
-                        "Result Status *",
-                        RESULT_STATUSES,
-                        key="doc_status"
-                    )
-                    doc_lab = st.text_input(
-                        "Lab / Facility",
-                        key="doc_lab"
-                    )
-
-                doc_summary = st.text_area(
-                    "Findings / Result Summary",
-                    height=120,
-                    key="doc_summary"
+                        ["Other"]
+                    ),
+                    key="doc_diag_name"
                 )
-                doc_notes = st.text_area(
-                    "Clinical Notes",
-                    height=80,
-                    key="doc_notes"
+                doc_status = st.selectbox(
+                    "Result Status *",
+                    RESULT_STATUSES,
+                    key="doc_result_status"
                 )
-                doc_file = st.file_uploader(
-                    "Attach Report",
-                    type=["pdf", "jpg", "jpeg", "png"],
-                    key="doc_file"
+                doc_lab = st.text_input(
+                    "Lab / Facility",
+                    placeholder="Hospital Laboratory",
+                    key="doc_lab_name"
                 )
 
-                submit_doc_diag = st.form_submit_button(
-                    "💾 Save Record",
-                    type="primary"
-                )
+            doc_summary = st.text_area(
+                "Findings / Result Summary",
+                height=120,
+                placeholder="Enter clinical findings...",
+                key="doc_summary"
+            )
 
-            if submit_doc_diag:
+            doc_notes = st.text_area(
+                "Clinical Notes",
+                height=80,
+                placeholder="Additional clinical notes...",
+                key="doc_notes"
+            )
+
+            st.markdown("**Attach Report File (Optional — max 4MB)**")
+            doc_file = st.file_uploader(
+                "Upload PDF or image",
+                type=["pdf", "jpg", "jpeg", "png"],
+                key="doc_diag_file"
+            )
+
+            if doc_file:
+                fext = doc_file.name.split(".")[-1].lower()
+                if fext in ("jpg", "jpeg", "png"):
+                    st.image(
+                        doc_file,
+                        caption=doc_file.name,
+                        width=300
+                    )
+                else:
+                    st.info(
+                        f"📄 {doc_file.name} "
+                        f"({doc_file.size / 1024:.1f} KB)"
+                    )
+
+            st.divider()
+
+            # Doctor lab values entry
+            st.markdown(
+                "**Add Structured Lab Values (optional)**"
+            )
+            doc_add_lab = st.checkbox(
+                "Add individual test values",
+                value=False,
+                key="doc_add_lab"
+            )
+
+            if doc_add_lab:
+                if "doc_lab_rows" not in st.session_state:
+                    st.session_state.doc_lab_rows = [
+                        {"name": "", "value": 0.0,
+                         "unit": "", "ref_min": 0.0,
+                         "ref_max": 0.0}
+                    ]
+
+                for i, row in enumerate(
+                    st.session_state.doc_lab_rows
+                ):
+                    cols = st.columns([3, 2, 1, 1, 1])
+                    with cols[0]:
+                        row["name"] = st.text_input(
+                            "Test Name",
+                            value=row["name"],
+                            key=f"dln_{i}",
+                            placeholder="e.g. WBC"
+                        )
+                    with cols[1]:
+                        row["value"] = st.number_input(
+                            "Value",
+                            value=float(row["value"]),
+                            key=f"dlv_{i}",
+                            step=0.01
+                        )
+                    with cols[2]:
+                        row["unit"] = st.text_input(
+                            "Unit",
+                            value=row["unit"],
+                            key=f"dlu_{i}",
+                            placeholder="10³/µL"
+                        )
+                    with cols[3]:
+                        row["ref_min"] = st.number_input(
+                            "Min",
+                            value=float(row["ref_min"]),
+                            key=f"dlmin_{i}",
+                            step=0.01
+                        )
+                    with cols[4]:
+                        row["ref_max"] = st.number_input(
+                            "Max",
+                            value=float(row["ref_max"]),
+                            key=f"dlmax_{i}",
+                            step=0.01
+                        )
+
+                if st.button(
+                    "➕ Add another test row",
+                    key="doc_add_lab_row"
+                ):
+                    st.session_state.doc_lab_rows.append(
+                        {"name": "", "value": 0.0,
+                         "unit": "", "ref_min": 0.0,
+                         "ref_max": 0.0}
+                    )
+                    st.rerun()
+
+            st.divider()
+
+            if st.button(
+                "💾 Save Diagnostic Record",
+                type="primary",
+                key="doc_save_diag"
+            ):
                 if not doc_patient_id.strip():
                     st.error("Patient ID is required.")
                 else:
                     with st.spinner("Saving…"):
                         try:
                             diag_id_temp = str(uuid.uuid4())
-                            file_name    = None
                             file_content = None
+                            file_name    = None
                             file_type    = None
                             file_size_kb = 0.0
 
-                            if uploaded_diag_file:
-                                try:
-                                    file_content, file_size_kb, file_type = encode_file_to_base64(
-                                        uploaded_diag_file
+                            if doc_file:
+                                file_content, file_size_kb, \
+                                    file_type = encode_file_to_base64(
+                                        doc_file
                                     )
-                                    file_name = uploaded_diag_file.name
-                                    st.success(
-                                        f"✅ File ready: {file_name} "
-                                        f"({file_size_kb:.1f} KB)"
-                                    )
-                                except ValueError as e:
-                                    st.error(str(e))
-                                    st.stop()
+                                file_name = doc_file.name
 
                             record = {
                                 "diagnostic_id":   diag_id_temp,
-                                "patient_id":      diag_patient_id.strip(),
-                                "diagnostic_type": diag_type,
-                                "diagnostic_name": diag_name,
-                                "diagnostic_date": str(diag_date),
-                                "result_summary":  result_summary or None,
-                                "result_status":   result_status,
-                                "ordering_doctor": ordering_doc or None,
-                                "performing_lab":  performing_lab or None,
-                                "notes":           notes or None,
+                                "patient_id":      doc_patient_id.strip(),
+                                "diagnostic_type": doc_diag_type,
+                                "diagnostic_name": doc_diag_name,
+                                "diagnostic_date": str(doc_diag_date),
+                                "result_summary":  doc_summary or None,
+                                "result_status":   doc_status,
+                                "ordering_doctor": doc_ordering or None,
+                                "performing_lab":  doc_lab or None,
+                                "notes":           doc_notes or None,
                                 "file_name":       file_name,
-                                "file_path":       None,           # no file path needed anymore
+                                "file_path":       None,
                                 "file_type":       file_type,
                                 "file_size_kb":    file_size_kb,
-                                "file_content":    file_content,   # base64 stored in Delta
-                                "created_by":      "patient",
+                                "file_content":    file_content,
+                                "created_by":      "doctor",
                             }
+
                             diagnostic_id = insert_diagnostic(record)
+
+                            # Save lab values if entered
+                            if doc_add_lab and \
+                               "doc_lab_rows" in st.session_state:
+                                valid_rows = [
+                                    r for r in
+                                    st.session_state.doc_lab_rows
+                                    if r.get("name")
+                                ]
+                                if valid_rows:
+                                    insert_lab_values(
+                                        diagnostic_id,
+                                        doc_patient_id.strip(),
+                                        valid_rows
+                                    )
+
                             load_all_diagnostics.clear()
                             load_diagnostic_stats.clear()
 
                             st.success(
-                                f"✅ Record saved! ID: `{diagnostic_id}`"
+                                f"✅ Record saved!\n\n"
+                                f"Diagnostic ID: `{diagnostic_id}`"
                             )
 
-                        except Exception as e:
-                            st.error(f"Failed: {e}")
+                            if "doc_lab_rows" in st.session_state:
+                                del st.session_state["doc_lab_rows"]
 
-        if st.button("🔄 Refresh Diagnostics"):
+                        except Exception as e:
+                            st.error(f"Failed to save: {e}")
+
+        # ── Refresh button ─────────────────────────────────────────────────────
+        if st.button("🔄 Refresh Diagnostics", key="refresh_diag"):
             load_all_diagnostics.clear()
             load_diagnostic_stats.clear()
             load_patient_diagnostics.clear()
-            st.rerun()            
+            load_file_content.clear()
+            st.rerun()          
 
         # ── Anomaly Alerts ─────────────────────────────────────────────────────
         with ai_tab2:
