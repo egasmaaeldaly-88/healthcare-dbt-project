@@ -51,6 +51,7 @@ from utils.ingestion_utils import (
     load_ingestion_stats,
     load_rejected_records,
     load_all_patients,
+    insert_surgery,
 )
 from utils.ml_utils import (
     load_risk_predictions,
