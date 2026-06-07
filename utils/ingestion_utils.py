@@ -490,3 +490,19 @@ def merge_csv_to_patients(source_name: str = "patients_csv") -> int:
             # التحقق من عدد السجلات المدمجة
             cur.execute(f"SELECT COUNT(*) FROM {staging_table} WHERE patient_id IN (SELECT patient_id FROM {target_table})")
             return cur.fetchone()[0]
+@st.cache_data(ttl=60, show_spinner=False)
+def load_patient_medications(patient_id: str) -> pd.DataFrame:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT med_id, drug_name, dosage_mg, frequency, 
+                       prescribing_doc, prescribed_at, file_name, file_path 
+                FROM workspace.healthcare_platform.medications 
+                WHERE patient_id = '{patient_id}'
+                ORDER BY prescribed_at DESC
+            """)
+            # تحويل النتيجة إلى DataFrame لسهولة العرض في Streamlit
+            return pd.DataFrame(
+                cur.fetchall(), 
+                columns=[d[0] for d in cur.description]
+            )        
