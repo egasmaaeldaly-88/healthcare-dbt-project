@@ -52,6 +52,7 @@ from utils.ingestion_utils import (
     load_rejected_records,
     load_all_patients,
     insert_surgery,
+    
 )
 from utils.ml_utils import (
     load_risk_predictions,
@@ -1403,53 +1404,39 @@ elif st.session_state.role == "doctor":
                 )
     df_patients = load_all_patients()                
     # ── Tab 7: Doctor Surgeries View ──────────────────────────────────────── 
-    with tab_surgeries:
-        st.subheader("🩻 Surgery Records")
-        
-        # 1. حقل إدخال الرقم القومي يدوياً
-        input_nid = st.text_input("Enter Patient National ID:", placeholder="e.g., 28910203495364")
-        
-        # 2. نموذج إدخال بيانات الجراحة
-        with st.form("surgery_form", clear_on_submit=True):
-            surgery_name = st.text_input("Surgery Name:")
-            surgery_date = st.date_input("Date of Surgery:")
-            surgeon_name = st.text_input("Surgeon Name:")
-            notes = st.text_area("Notes:")
-            uploaded_report = st.file_uploader("Upload Report", type=['pdf', 'jpg', 'png'])
-            
-            submit_surgery = st.form_submit_button("🚀 Save Surgery Record", type="primary")
+    # في أعلى ملف app.py أو قبل التبويب مباشرة
+df_patients = load_all_patients()
 
-        # 3. معالجة البيانات عند الضغط على زر الحفظ
-        if submit_surgery:
-            # التحقق من أن الرقم القومي تم إدخاله
-            if not input_nid or len(input_nid) < 14:
-                st.error("Please enter a valid 14-digit National ID.")
-            elif not surgery_name:
-                st.error("Please enter a surgery name.")
-            else:
-                # منطق حفظ الملف
-                file_path = None
-                if uploaded_report:
-                    file_path = f"/Volumes/workspace/healthcare_platform/my_model_storage/{uploaded_report.name}"
-                    with open(file_path, "wb") as f:
-                        f.write(uploaded_report.getbuffer())
-                
-                # تجهيز البيانات
-                surgery_data = {
-                    "surgery_name": surgery_name,
-                    "surgery_date": str(surgery_date),
-                    "surgeon_name": surgeon_name,
-                    "notes": notes
-                }
-                
-                # حفظ في القاعدة
-                with st.spinner("Saving record..."):
-                    # نستخدم هنا input_nid الذي أدخله الطبيب يدوياً
-                    success = insert_surgery(input_nid, surgery_data, file_path)
-                
-                if success:
-                    st.success(f"✅ Record saved for ID: {input_nid}")
-                    st.balloons()
+with tab_surgeries:
+    st.subheader("🩻 Surgery Records")
+    
+    # استخدام selectbox مع بيانات الدالة التي أنشأتها
+    # هذا يضمن أن الطبيب يرى الاسم ولكننا نستخدم الرقم القومي في الحفظ
+    selected_idx = st.selectbox(
+        "Select Patient:",
+        options=range(len(df_patients)),
+        format_func=lambda i: f"{df_patients.iloc[i]['full_name']} ({df_patients.iloc[i]['national_id']})"
+    )
+    
+    # استخراج الـ National ID للمريض المختار
+    selected_nid = df_patients.iloc[selected_idx]['national_id']
+    st.info(f"Selected Patient ID: {selected_nid}")
+
+    with st.form("surgery_form", clear_on_submit=True):
+        surgery_name = st.text_input("Surgery Name:")
+        surgery_date = st.date_input("Date of Surgery:")
+        surgeon_name = st.text_input("Surgeon Name:")
+        notes = st.text_area("Notes:")
+        uploaded_report = st.file_uploader("Upload Report", type=['pdf', 'jpg', 'png'])
+        
+        submit_surgery = st.form_submit_button("🚀 Save Surgery Record", type="primary")
+
+    if submit_surgery:
+        # استدعاء الدالة باستخدام الـ selected_nid
+        # ... (بقية كود الحفظ كما اتفقنا سابقاً) ...
+        success = insert_surgery(selected_nid, surgery_data, file_path)
+        if success:
+            st.success("✅ Surgery record saved!")
 # ── Tab 6: Doctor Diagnostics View ────────────────────────────────────────
     with tab_diag:
         st.subheader("Patient Diagnostics")
