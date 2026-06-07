@@ -966,14 +966,15 @@ if st.session_state.role == "patient":
 elif st.session_state.role == "doctor":
     st.title("Clinical Dashboard")
 
-    tab_dashboard, tab_vitals_drill,tab_meds, tab_monitor, tab_quality, tab_ai,tab_diag = st.tabs([
+    tab_dashboard, tab_vitals_drill,tab_meds, tab_monitor, tab_quality, tab_ai,tab_diag,tab_surgeries = st.tabs([
         "📊 Dashboard",
         "🩺 Patient Vitals",
         "💊 Prescribe Medication",
         "🔍 Ingestion Monitor",
         "🏥 Quality Gates",
         "🤖 AI Insights",
-        "🔬 Diagnostics"
+        "🔬 Diagnostics",
+        "🩻 Surgeries"
     ])
 
     # ── Tab 1: Main Dashboard ──────────────────────────────────────────────────
@@ -1398,6 +1399,49 @@ elif st.session_state.role == "doctor":
                     use_container_width=True,
                     hide_index=True
                 )
+# ── Tab 7: Doctor Surgeries View ────────────────────────────────────────  
+    with tab_surgeries:
+            st.subheader("🩻 Surgery Records")
+            
+            # 1. تعريف النموذج
+            with st.form("surgery_form", clear_on_submit=True):
+                surgery_name = st.text_input("Surgery Name:")
+                surgery_date = st.date_input("Date of Surgery:")
+                surgeon_name = st.text_input("Surgeon Name:")
+                notes = st.text_area("Notes:")
+                uploaded_report = st.file_uploader("Upload Report", type=['pdf', 'jpg', 'png'])
+                
+                # 2. زر الحفظ
+                submit_surgery = st.form_submit_button("🚀 Save Surgery Record", type="primary")
+
+            # 3. المنطق الذي سألته عنه (يجب أن يكون خارج الـ form مباشرة)
+            if submit_surgery:
+                # أضف هنا التحقق من الاسم (اختياري ولكنه مفضل)
+                if not surgery_name:
+                    st.error("Please enter a surgery name.")
+                else:
+                    # منطق حفظ الملف
+                    file_path = None
+                    if uploaded_report:
+                        file_path = f"/Volumes/workspace/healthcare_platform/my_model_storage/{uploaded_report.name}"
+                        with open(file_path, "wb") as f:
+                            f.write(uploaded_report.getbuffer())
+                    
+                    # تجهيز البيانات
+                    surgery_data = {
+                        "surgery_name": surgery_name,
+                        "surgery_date": str(surgery_date),
+                        "surgeon_name": surgeon_name,
+                        "notes": notes
+                    }
+                    
+                    # حفظ البيانات في القاعدة
+                    with st.spinner("Saving..."):
+                        success = insert_surgery(selected_patient_id, surgery_data, file_path)
+                    
+                    if success:
+                        st.success("✅ Surgery record saved successfully!")
+                        st.balloons()
 # ── Tab 6: Doctor Diagnostics View ────────────────────────────────────────
     with tab_diag:
         st.subheader("Patient Diagnostics")
