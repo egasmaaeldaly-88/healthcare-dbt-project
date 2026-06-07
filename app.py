@@ -1405,15 +1405,10 @@ elif st.session_state.role == "doctor":
     with tab_surgeries:
         st.subheader("🩻 Surgery Records")
         
-        # 1. اختيار المريض بناءً على الرقم القومي (National ID)
-        # تأكد أن df_patients محمّل مسبقاً ويحتوي على 'national_id' و 'full_name'
-        selected_patient_nid = st.selectbox(
-            "Select Patient (National ID):",
-            options=df_patients["national_id"].tolist(),
-            format_func=lambda nid: f"{df_patients[df_patients['national_id'] == nid]['full_name'].values[0]} ({nid})"
-        )
-
-        # 2. تعريف النموذج
+        # 1. حقل إدخال الرقم القومي يدوياً
+        input_nid = st.text_input("Enter Patient National ID:", placeholder="e.g., 28910203495364")
+        
+        # 2. نموذج إدخال بيانات الجراحة
         with st.form("surgery_form", clear_on_submit=True):
             surgery_name = st.text_input("Surgery Name:")
             surgery_date = st.date_input("Date of Surgery:")
@@ -1421,15 +1416,17 @@ elif st.session_state.role == "doctor":
             notes = st.text_area("Notes:")
             uploaded_report = st.file_uploader("Upload Report", type=['pdf', 'jpg', 'png'])
             
-            # 2. زر الحفظ
             submit_surgery = st.form_submit_button("🚀 Save Surgery Record", type="primary")
 
-        # 3. المنطق (خارج الـ form)
+        # 3. معالجة البيانات عند الضغط على زر الحفظ
         if submit_surgery:
-            if not surgery_name:
+            # التحقق من أن الرقم القومي تم إدخاله
+            if not input_nid or len(input_nid) < 14:
+                st.error("Please enter a valid 14-digit National ID.")
+            elif not surgery_name:
                 st.error("Please enter a surgery name.")
             else:
-                # منطق حفظ الملف في المجلد (Volume)
+                # منطق حفظ الملف
                 file_path = None
                 if uploaded_report:
                     file_path = f"/Volumes/workspace/healthcare_platform/my_model_storage/{uploaded_report.name}"
@@ -1444,13 +1441,13 @@ elif st.session_state.role == "doctor":
                     "notes": notes
                 }
                 
-                # حفظ البيانات في القاعدة باستخدام الـ National ID
-                with st.spinner("Saving surgery record..."):
-                    # هنا نستخدم selected_patient_nid بدلاً من selected_patient_id
-                    success = insert_surgery(selected_patient_nid, surgery_data, file_path)
+                # حفظ في القاعدة
+                with st.spinner("Saving record..."):
+                    # نستخدم هنا input_nid الذي أدخله الطبيب يدوياً
+                    success = insert_surgery(input_nid, surgery_data, file_path)
                 
                 if success:
-                    st.success(f"✅ Surgery record for ID {selected_patient_nid} saved successfully!")
+                    st.success(f"✅ Record saved for ID: {input_nid}")
                     st.balloons()
 # ── Tab 6: Doctor Diagnostics View ────────────────────────────────────────
     with tab_diag:
