@@ -516,5 +516,15 @@ def insert_surgery(national_id: str, surgery_data: dict, file_path: str = None) 
         return True
     except Exception as e:
         st.error(f"Surgery record insert failed: {e}")
-        return False      
+        return False   
+@st.cache_data(ttl=60)
+def load_all_patients():
+    """تجلب قائمة جميع المرضى ومعلوماتهم لربط السجلات بالرقم القومي"""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT national_id, full_name 
+                FROM workspace.healthcare_platform.patients
+            """)
+            return pd.DataFrame(cur.fetchall(), columns=['national_id', 'full_name'])       
         

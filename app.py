@@ -50,6 +50,7 @@ from utils.ingestion_utils import (
     register_patient,
     load_ingestion_stats,
     load_rejected_records,
+    load_all_patients,
 )
 from utils.ml_utils import (
     load_risk_predictions,
@@ -1399,49 +1400,58 @@ elif st.session_state.role == "doctor":
                     use_container_width=True,
                     hide_index=True
                 )
-# ── Tab 7: Doctor Surgeries View ────────────────────────────────────────  
+df_patients = load_all_patients()                
+# ── Tab 7: Doctor Surgeries View ──────────────────────────────────────── 
     with tab_surgeries:
-            st.subheader("🩻 Surgery Records")
-            
-            # 1. تعريف النموذج
-            with st.form("surgery_form", clear_on_submit=True):
-                surgery_name = st.text_input("Surgery Name:")
-                surgery_date = st.date_input("Date of Surgery:")
-                surgeon_name = st.text_input("Surgeon Name:")
-                notes = st.text_area("Notes:")
-                uploaded_report = st.file_uploader("Upload Report", type=['pdf', 'jpg', 'png'])
-                
-                # 2. زر الحفظ
-                submit_surgery = st.form_submit_button("🚀 Save Surgery Record", type="primary")
+        st.subheader("🩻 Surgery Records")
+        
+        # 1. اختيار المريض بناءً على الرقم القومي (National ID)
+        # تأكد أن df_patients محمّل مسبقاً ويحتوي على 'national_id' و 'full_name'
+        selected_patient_nid = st.selectbox(
+            "Select Patient (National ID):",
+            options=df_patients["national_id"].tolist(),
+            format_func=lambda nid: f"{df_patients[df_patients['national_id'] == nid]['full_name'].values[0]} ({nid})"
+        )
 
-            # 3. المنطق الذي سألته عنه (يجب أن يكون خارج الـ form مباشرة)
-            if submit_surgery:
-                # أضف هنا التحقق من الاسم (اختياري ولكنه مفضل)
-                if not surgery_name:
-                    st.error("Please enter a surgery name.")
-                else:
-                    # منطق حفظ الملف
-                    file_path = None
-                    if uploaded_report:
-                        file_path = f"/Volumes/workspace/healthcare_platform/my_model_storage/{uploaded_report.name}"
-                        with open(file_path, "wb") as f:
-                            f.write(uploaded_report.getbuffer())
-                    
-                    # تجهيز البيانات
-                    surgery_data = {
-                        "surgery_name": surgery_name,
-                        "surgery_date": str(surgery_date),
-                        "surgeon_name": surgeon_name,
-                        "notes": notes
-                    }
-                    
-                    # حفظ البيانات في القاعدة
-                    with st.spinner("Saving..."):
-                        success = insert_surgery(selected_patient_id, surgery_data, file_path)
-                    
-                    if success:
-                        st.success("✅ Surgery record saved successfully!")
-                        st.balloons()
+        # 2. تعريف النموذج
+        with st.form("surgery_form", clear_on_submit=True):
+            surgery_name = st.text_input("Surgery Name:")
+            surgery_date = st.date_input("Date of Surgery:")
+            surgeon_name = st.text_input("Surgeon Name:")
+            notes = st.text_area("Notes:")
+            uploaded_report = st.file_uploader("Upload Report", type=['pdf', 'jpg', 'png'])
+            
+            # 2. زر الحفظ
+            submit_surgery = st.form_submit_button("🚀 Save Surgery Record", type="primary")
+
+        # 3. المنطق (خارج الـ form)
+        if submit_surgery:
+            if not surgery_name:
+                st.error("Please enter a surgery name.")
+            else:
+                # منطق حفظ الملف في المجلد (Volume)
+                file_path = None
+                if uploaded_report:
+                    file_path = f"/Volumes/workspace/healthcare_platform/my_model_storage/{uploaded_report.name}"
+                    with open(file_path, "wb") as f:
+                        f.write(uploaded_report.getbuffer())
+                
+                # تجهيز البيانات
+                surgery_data = {
+                    "surgery_name": surgery_name,
+                    "surgery_date": str(surgery_date),
+                    "surgeon_name": surgeon_name,
+                    "notes": notes
+                }
+                
+                # حفظ البيانات في القاعدة باستخدام الـ National ID
+                with st.spinner("Saving surgery record..."):
+                    # هنا نستخدم selected_patient_nid بدلاً من selected_patient_id
+                    success = insert_surgery(selected_patient_nid, surgery_data, file_path)
+                
+                if success:
+                    st.success(f"✅ Surgery record for ID {selected_patient_nid} saved successfully!")
+                    st.balloons()
 # ── Tab 6: Doctor Diagnostics View ────────────────────────────────────────
     with tab_diag:
         st.subheader("Patient Diagnostics")
