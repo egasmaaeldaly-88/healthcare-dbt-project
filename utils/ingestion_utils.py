@@ -519,12 +519,12 @@ def insert_surgery(national_id: str, surgery_data: dict, file_path: str = None) 
         return False   
 @st.cache_data(ttl=60)
 def load_all_patients():
-    """تجلب قائمة جميع المرضى ومعلوماتهم لربط السجلات بالرقم القومي"""
+    """جلب قائمة المرضى مع دمج الاسم الأول والأخير"""
     with get_connection() as conn:
         with conn.cursor() as cur:
+            # نقوم بدمج العمودين باستخدام CONCAT
             cur.execute("""
-                SELECT national_id, full_name 
+                SELECT national_id, CONCAT(first_name, ' ', last_name) as full_name 
                 FROM workspace.healthcare_platform.patients
             """)
-            return pd.DataFrame(cur.fetchall(), columns=['national_id', 'full_name'])       
-        
+            return pd.DataFrame(cur.fetchall(), columns=['national_id', 'full_name'])
