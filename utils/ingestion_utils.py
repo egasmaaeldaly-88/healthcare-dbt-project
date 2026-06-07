@@ -492,20 +492,20 @@ def merge_csv_to_patients(source_name: str = "patients_csv") -> int:
             return cur.fetchone()[0]
 
 
-def insert_surgery(patient_id: str, surgery_data: dict, file_path: str = None) -> bool:
+def insert_surgery(national_id: str, surgery_data: dict, file_path: str = None) -> bool:
     try:
-        # إذا لم يوجد ملف، نضع القيمة كـ NULL في SQL
         f_path = f"'{file_path}'" if file_path else "NULL"
         
         with get_connection() as conn:
             with conn.cursor() as cur:
+                # نستخدم هنا national_id بدلاً من patient_id
                 cur.execute(f"""
                     INSERT INTO workspace.healthcare_platform.surgeries (
-                        surgery_id, patient_id, surgery_name, surgery_date, 
+                        surgery_id, national_id, surgery_name, surgery_date, 
                         surgeon_name, notes, file_path
                     ) VALUES (
                         '{str(uuid.uuid4())[:8]}',
-                        '{patient_id}',
+                        '{national_id}',
                         '{surgery_data['surgery_name']}',
                         '{surgery_data['surgery_date']}',
                         '{surgery_data['surgeon_name']}',
@@ -516,5 +516,5 @@ def insert_surgery(patient_id: str, surgery_data: dict, file_path: str = None) -
         return True
     except Exception as e:
         st.error(f"Surgery record insert failed: {e}")
-        return False        
+        return False      
         
