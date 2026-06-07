@@ -1400,8 +1400,8 @@ elif st.session_state.role == "doctor":
                     use_container_width=True,
                     hide_index=True
                 )
-df_patients = load_all_patients()                
-# ── Tab 7: Doctor Surgeries View ──────────────────────────────────────── 
+    df_patients = load_all_patients()                
+    # ── Tab 7: Doctor Surgeries View ──────────────────────────────────────── 
     with tab_surgeries:
         st.subheader("🩻 Surgery Records")
         
