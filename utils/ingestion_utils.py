@@ -656,16 +656,27 @@ def _build_medical_history(history: dict) -> pd.DataFrame:
     """
     diag = history["diagnostics"][["Date", "Type", "Diagnostic Name"]].rename(
         columns={"Diagnostic Name": "Description"}
-    )
+    ).copy()
+
     surg = history["surgeries"][["Date", "Type", "Surgery Name"]].rename(
         columns={"Surgery Name": "Description"}
-    )
+    ).copy()
+
     meds = history["medications"][["Date", "Type", "Drug Name"]].rename(
         columns={"Drug Name": "Description"}
-    )
+    ).copy()
+
+    # ── Normalise dates BEFORE concat to avoid mixed-type errors ──────────────
+    # utc=True handles tz-aware Spark Timestamps; convert_dtypes handles
+    # edge cases where Databricks returns date objects instead of strings.
+    for df in (diag, surg, meds):
+        df["Date"] = pd.to_datetime(
+            df["Date"].astype(str),   # stringify first — flattens all types
+            errors="coerce",
+            utc=True,
+        ).dt.tz_localize(None)        # strip tz so all three are tz-naive
 
     combined = pd.concat([diag, surg, meds], ignore_index=True)
-    combined["Date"] = pd.to_datetime(combined["Date"], errors="coerce")
     combined.sort_values("Date", ascending=False, inplace=True)
     combined["Date"] = combined["Date"].dt.strftime("%Y-%m-%d")
-    return combined.reset_index(drop=True)        
+    return combined[["Date", "Type", "Description"]].reset_index(drop=True)       
