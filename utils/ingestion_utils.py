@@ -94,24 +94,19 @@ def validate_national_id(value: str, length: int = 14) -> tuple[bool, str]:
 
 # utils/ingestion_utils.py
 
-def patient_exists(patient_id: str) -> bool:
+def patient_exists(national_id: str) -> bool:
     """
-    تتحقق ما إذا كان المريض مسجلاً مسبقاً في قاعدة البيانات.
+    تتحقق ما إذا كان المريض مسجلاً مسبقاً بناءً على الرقم القومي.
     """
     try:
-        # ملاحظة: إذا كنتِ قمتِ بتعريف get_db_connection (مع cache_resource)،
-        # استخدميها هنا لضمان السرعة.
         with get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"""
-                    SELECT COUNT(1) AS n
-                    FROM workspace.healthcare_platform.patients
-                    WHERE patient_id = '{patient_id}'
-                """)
+                # تغيير البحث ليتم عبر national_id بدلاً من patient_id
+                sql = "SELECT COUNT(1) FROM workspace.healthcare_platform.patients WHERE national_id = ?"
+                cur.execute(sql, (national_id,))
                 row = cur.fetchone()
                 return row[0] > 0
     except Exception as e:
-        # إظهار خطأ في واجهة Streamlit إذا فشل الاتصال
         import streamlit as st
         st.error(f"Connection error: {e}")
         return False
