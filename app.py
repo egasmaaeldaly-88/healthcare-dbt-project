@@ -52,6 +52,8 @@ from utils.ingestion_utils import (
     load_rejected_records,
     load_all_patients,
     insert_surgery,
+    get_patient_history,
+    _build_medical_history,
     
 )
 from utils.ml_utils import (
@@ -303,11 +305,12 @@ if not st.session_state.authenticated:
 if st.session_state.role == "patient":
     st.title("Patient Portal")
 
-    tab_vitals, tab_register, tab_upload, tab_diagnostics= st.tabs([
+    tab_vitals, tab_register, tab_upload, tab_diagnostics,tab_history= st.tabs([
         "📋 Submit Vitals",
         "🆕 Register",
         "📤 Bulk Upload",
-        "🔬 My Diagnostics"
+        "🔬 My Diagnostics",
+        "🏥 Patient History"
     ])
 
     # ── Tab 1: Submit Vitals ───────────────────────────────────────────────────
@@ -960,7 +963,82 @@ if st.session_state.role == "patient":
                                     st.info(
                                         "No file attached to "
                                         "this record."
-                                    )                  
+                                    )  
+
+
+    with tab_history:
+
+        st.subheader("🔍 Patient History")
+
+        national_id_input = st.text_input(
+            label="National ID",
+            placeholder="Enter 14-digit National ID",
+            max_chars=14,
+        )
+
+        if national_id_input:
+
+            # ── Basic format guard ────────────────────────────────────────────────────
+            if not re.fullmatch(r"\d{14}", national_id_input):
+                st.error("National ID must be exactly 14 digits.")
+
+            else:
+                with st.spinner("Fetching patient records…"):
+                    history = get_patient_history(national_id_input)
+
+                # ── Patient not found ─────────────────────────────────────────────────
+                if history is None:
+                    st.warning(
+                        f"No patient found for National ID **{national_id_input}**. "
+                        "Please verify the ID and try again."
+                    )
+
+                # ── Patient found ─────────────────────────────────────────────────────
+                else:
+                    st.success(f"Patient UUID: `{history['patient_id']}`")
+
+                    # Last 3 Vitals
+                    st.markdown("#### 🩺 Last 3 Vitals")
+                    if history["vitals"].empty:
+                        st.info("No vital readings recorded.")
+                    else:
+                        st.dataframe(
+                            history["vitals"],
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+
+                    st.divider()
+
+                    # Combined Medical History
+                    st.markdown("#### 📋 Medical History")
+                    medical_history_df = _build_medical_history(history)
+
+                    if medical_history_df.empty:
+                        st.info("No medical history records found.")
+                    else:
+                        # Colour-code by record type
+                        def _highlight_type(row):
+                            colours = {
+                                "Diagnostic": "background-color: #e8f4fd",
+                                "Surgery":    "background-color: #fdecea",
+                                "Medication": "background-color: #e9fbe9",
+                            }
+                            return [colours.get(row["Type"], "")] * len(row)
+
+                        st.dataframe(
+                            medical_history_df.style.apply(_highlight_type, axis=1),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+
+                        # Download button
+                        st.download_button(
+                            label="⬇️ Export Medical History as CSV",
+                            data=medical_history_df.to_csv(index=False).encode("utf-8"),
+                            file_name=f"medical_history_{national_id_input}.csv",
+                            mime="text/csv",
+                        )                                                
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -492,31 +492,31 @@ def merge_csv_to_patients(source_name: str = "patients_csv") -> int:
             return cur.fetchone()[0]
 
 
-def insert_surgery(national_id: str, surgery_data: dict, file_path: str = None) -> bool:
+def insert_surgery(national_id, surgery_data, file_path):
     try:
-        f_path = f"'{file_path}'" if file_path else "NULL"
+        # إضافة اسم المريض إذا كان موجوداً في الـ dict
+        p_name = surgery_data.get('patient_name', 'Unknown')
         
         with get_connection() as conn:
             with conn.cursor() as cur:
-                # نستخدم هنا national_id بدلاً من patient_id
                 cur.execute(f"""
                     INSERT INTO workspace.healthcare_platform.surgeries (
-                        surgery_id, national_id, surgery_name, surgery_date, 
+                        national_id, patient_name, surgery_name, surgery_date, 
                         surgeon_name, notes, file_path
                     ) VALUES (
-                        '{str(uuid.uuid4())[:8]}',
                         '{national_id}',
+                        '{p_name}',
                         '{surgery_data['surgery_name']}',
                         '{surgery_data['surgery_date']}',
                         '{surgery_data['surgeon_name']}',
                         '{surgery_data['notes']}',
-                        {f_path}
+                        '{file_path if file_path else 'NULL'}'
                     )
                 """)
         return True
     except Exception as e:
-        st.error(f"Surgery record insert failed: {e}")
-        return False   
+        print(f"Error inserting: {e}")
+        return False
 @st.cache_data(ttl=60)
 def load_all_patients():
     """جلب قائمة المرضى مع دمج الاسم الأول والأخير"""
@@ -528,3 +528,142 @@ def load_all_patients():
                 FROM workspace.healthcare_platform.patients
             """)
             return pd.DataFrame(cur.fetchall(), columns=['national_id', 'full_name'])
+
+# ── Patient History ───────────────────────────────────────────────────────────
+
+def get_patient_history(national_id: str) -> dict | None:
+    """
+    Retrieves the full patient history for a given 14-digit national_id.
+
+    Returns a dict with keys:
+        patient_id  – UUID str
+        vitals      – DataFrame (last 3 readings, newest first)
+        diagnostics – DataFrame
+        surgeries   – DataFrame
+        medications – DataFrame
+
+    Returns None if the national_id is not found in the patients table.
+    """
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+
+            # ── Step A: resolve UUID from patients table ──────────────────────
+            cur.execute(
+                f"""
+                SELECT patient_id
+                FROM   {SCHEMA}.patients
+                WHERE  national_id = ?
+                LIMIT  1
+                """,
+                [national_id],
+            )
+            row = cur.fetchone()
+
+        if row is None:
+            return None          # patient not found
+
+        patient_uuid = row[0]
+
+        with conn.cursor() as cur:
+
+            # ── Step B-1: Vitals (UUID-keyed, last 3) ────────────────────────
+            cur.execute(
+                f"""
+                SELECT recorded_at, systolic_bp, diastolic_bp, heart_rate
+                FROM   {SCHEMA}.vitals
+                WHERE  patient_id = ?
+                ORDER  BY recorded_at DESC
+                LIMIT  3
+                """,
+                [patient_uuid],
+            )
+            vitals_df = _cursor_to_df(
+                cur,
+                ["Recorded At", "Systolic BP", "Diastolic BP", "Heart Rate"],
+            )
+
+            # ── Step B-2: Medications (UUID-keyed) ───────────────────────────
+            cur.execute(
+                f"""
+                SELECT prescribed_at, drug_name
+                FROM   {SCHEMA}.medications
+                WHERE  patient_id = ?
+                ORDER  BY prescribed_at DESC
+                """,
+                [patient_uuid],
+            )
+            medications_df = _cursor_to_df(cur, ["Date", "Drug Name"])
+            medications_df["Type"] = "Medication"
+
+            # ── Step C-1: Diagnostics (national_id-keyed) ────────────────────
+            cur.execute(
+                f"""
+                SELECT diagnostic_date, diagnostic_name, result_status
+                FROM   {SCHEMA}.diagnostic_records
+                WHERE  patient_id = ?
+                ORDER  BY diagnostic_date DESC
+                """,
+                [national_id],
+            )
+            diagnostics_df = _cursor_to_df(
+                cur, ["Date", "Diagnostic Name", "Result Status"]
+            )
+            diagnostics_df["Type"] = "Diagnostic"
+
+            # ── Step C-2: Surgeries (national_id-keyed) ───────────────────────
+            cur.execute(
+                f"""
+                SELECT surgery_date, surgery_name
+                FROM   {SCHEMA}.surgeries
+                WHERE  national_id = ?
+                ORDER  BY surgery_date DESC
+                """,
+                [national_id],
+            )
+            surgeries_df = _cursor_to_df(cur, ["Date", "Surgery Name"])
+            surgeries_df["Type"] = "Surgery"
+
+    finally:
+        conn.close()
+
+    return {
+        "patient_id":  patient_uuid,
+        "vitals":      vitals_df,
+        "diagnostics": diagnostics_df,
+        "surgeries":   surgeries_df,
+        "medications": medications_df,
+    }
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _cursor_to_df(cursor, columns: list[str]) -> pd.DataFrame:
+    """Converts a Databricks cursor result to a tidy DataFrame."""
+    rows = cursor.fetchall()
+    if rows:
+        return pd.DataFrame(rows, columns=columns)
+    return pd.DataFrame(columns=columns)
+
+
+def _build_medical_history(history: dict) -> pd.DataFrame:
+    """
+    Merges Diagnostics, Surgeries, and Medications into a single
+    chronological 'Medical History' table, sorted newest-first.
+    """
+    diag = history["diagnostics"][["Date", "Type", "Diagnostic Name"]].rename(
+        columns={"Diagnostic Name": "Description"}
+    )
+    surg = history["surgeries"][["Date", "Type", "Surgery Name"]].rename(
+        columns={"Surgery Name": "Description"}
+    )
+    meds = history["medications"][["Date", "Type", "Drug Name"]].rename(
+        columns={"Drug Name": "Description"}
+    )
+
+    combined = pd.concat([diag, surg, meds], ignore_index=True)
+    combined["Date"] = pd.to_datetime(combined["Date"], errors="coerce")
+    combined.sort_values("Date", ascending=False, inplace=True)
+    combined["Date"] = combined["Date"].dt.strftime("%Y-%m-%d")
+    return combined.reset_index(drop=True)        
