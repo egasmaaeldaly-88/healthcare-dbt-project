@@ -9,6 +9,7 @@ from databricks import sql
 from datetime import datetime, timezone
 import uuid
 import os
+import re
 import streamlit as st
 from utils.diagnostics_utils import (
     DIAGNOSTIC_TYPES,
