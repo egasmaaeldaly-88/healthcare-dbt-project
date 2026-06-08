@@ -11,7 +11,7 @@ vitals_agg AS (
         patient_id,
         COUNT(*)                                      AS total_readings,
         ROUND(AVG(systolic_bp), 1)                    AS avg_systolic_bp,
-        ROUND(AVG(diastolic_dp), 1)                   AS avg_diastolic_bp,
+        ROUND(AVG(diastolic_bp), 1)                   AS avg_diastolic_bp, -- تم التصحيح هنا
         ROUND(AVG(heart_rate), 1)                     AS avg_heart_rate,
         ROUND(AVG(spo2_pct), 2)                       AS avg_spo2_pct,
         MAX(recorded_at)                              AS last_reading_at
@@ -30,7 +30,7 @@ meds_agg AS (
 
 SELECT
     p.patient_id,
-    p.national_id,  -- تم إضافة هذا العمود
+    p.national_id,  -- تم إضافته ليعمل التطبيق
     p.full_name,
     p.age_years,
     p.gender,
