@@ -134,23 +134,18 @@ def load_vitals_timeseries(patient_id: str | None = None) -> pd.DataFrame:
             )
 
 @st.cache_data(ttl=30, show_spinner=False)
-def patient_exists(patient_id: str) -> bool:
-    """
-    Fast existence check — returns True/False within seconds.
-    Uses COUNT which is optimised on Delta tables.
-    """
+# التعديل النهائي الموصى به لدالة البحث
+def patient_exists(national_id: str) -> bool:
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"""
-                    SELECT COUNT(1) AS n
-                    FROM workspace.healthcare_platform.patients
-                    WHERE patient_id = '{patient_id}'
-                """)
-                result = cur.fetchone()
-                return result[0] > 0
+                # دالة TRIM تزيل أي مسافات زائدة من الجانبين
+                sql = "SELECT COUNT(1) FROM workspace.healthcare_platform.patients WHERE TRIM(national_id) = TRIM(?)"
+                cur.execute(sql, (str(national_id),))
+                row = cur.fetchone()
+                return row[0] > 0
     except Exception as e:
-        st.error(f"Connection error: {e}")
+        st.error(f"Error checking patient: {e}")
         return False
 
 def insert_vitals(national_id: str, vitals: dict) -> bool:
