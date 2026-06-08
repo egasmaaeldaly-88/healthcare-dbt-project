@@ -351,47 +351,39 @@ def ingest_csv_streamlit(
 
 
 # ── Patient registration (single row insert) ───────────────────────────────────
-# ── Patient registration (single row insert) ───────────────────────────────────
-def register_patient(patient: dict) -> bool:
-    """
-    مصلحة: تقوم بتوليد الـ patient_id (UUID) تلقائياً 
-    وتضع الـ national_id في عموده الصحيح والمستقل.
-    """
+def register_patient(patient: dict) -> str | None: # تغيير النوع هنا
     import uuid
     
-    # 1. توليد معرف UUID فريد ونظيف للمريض الجديد
+    # التحقق من وجود الرقم القومي قبل البدء
+    if "national_id" not in patient:
+        return None 
+
     generated_patient_id = str(uuid.uuid4())
     
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"""
-                INSERT INTO workspace.healthcare_platform.patients
-                    (
-                        patient_id,      -- المعرف الفريد المولد تلقائياً
-                        national_id,     -- الرقم القومي المدخل من الشاشة
-                        first_name, 
-                        last_name,
-                        date_of_birth, 
-                        gender, 
-                        blood_type,
-                        contact_email, 
-                        created_at
-                    )
-                VALUES (
-                    '{generated_patient_id}',
-                    '{patient["national_id"]}',
-                    '{patient["first_name"].replace("'", "''")}',
-                    '{patient["last_name"].replace("'", "''")}',
-                    '{patient["date_of_birth"]}',
-                    '{patient["gender"]}',
-                    '{patient["blood_type"]}',
-                    '{patient["contact_email"].replace("'", "''")}',
-                    current_timestamp()
-                )
-            """)
-    return generated_patient_id  # ارجاع الـ UUID المتولد لطباعته للمستخدم
-
-
+    # استخدام Parameterized Query لتجنب الأخطاء الأمنية
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                sql = """
+                    INSERT INTO workspace.healthcare_platform.patients 
+                    (patient_id, national_id, first_name, last_name, date_of_birth, gender, blood_type, contact_email, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, current_timestamp())
+                """
+                cur.execute(sql, (
+                    generated_patient_id,
+                    patient["national_id"],
+                    patient["first_name"],
+                    patient["last_name"],
+                    patient["date_of_birth"],
+                    patient["gender"],
+                    patient["blood_type"],
+                    patient["contact_email"]
+                ))
+        return generated_patient_id # ارجاع المعرف
+    except Exception as e:
+        print(f"Database Error: {e}")
+        return None
+    
 # ── Ingestion monitor queries ──────────────────────────────────────────────────
 @st.cache_data(ttl=60, show_spinner=False)
 def load_ingestion_stats() -> pd.DataFrame:

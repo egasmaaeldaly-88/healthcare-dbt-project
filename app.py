@@ -463,6 +463,7 @@ if st.session_state.role == "patient":
                         # بما أننا لا نعتمد على الرقم القومي، نقوم بالتسجيل مباشرة
                         # أو يمكنك فحص التكرار بناءً على (الاسم + تاريخ الميلاد) إذا أردتِ
                         patient_data = {
+                            "national_id":   reg_national_id.strip(),
                             "first_name":    reg_first_name.strip(),
                             "last_name":     reg_last_name.strip(),
                             "date_of_birth": str(reg_dob),
