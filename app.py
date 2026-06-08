@@ -108,9 +108,13 @@ def get_connection():
 def load_doctor_dashboard() -> pd.DataFrame:
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM workspace.gold.gold_doctor_dashboard"
-            )
+            # نقوم بعمل JOIN لجلب الـ national_id من جدول المرضى
+            query = """
+                SELECT g.*, p.national_id 
+                FROM workspace.gold.gold_doctor_dashboard g
+                JOIN workspace.healthcare_platform.patients p ON g.patient_id = p.patient_id
+            """
+            cur.execute(query)
             return pd.DataFrame(
                 cur.fetchall(),
                 columns=[d[0] for d in cur.description]
