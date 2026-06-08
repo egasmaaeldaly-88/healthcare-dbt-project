@@ -7,6 +7,8 @@ from databricks import sql
 import pandas as pd
 import streamlit as st
 import uuid
+ 
+SCHEMA = "workspace.healthcare_platform"
 
 
 # ── Connection ─────────────────────────────────────────────────────────────────
