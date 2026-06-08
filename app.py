@@ -150,11 +150,12 @@ def patient_exists(national_id: str) -> bool:
 
 def insert_vitals(national_id: str, vitals: dict) -> bool:
     try:
+        import uuid
+        from datetime import datetime, timezone
         
-
         with get_connection() as conn:
             with conn.cursor() as cur:
-                # 1. البحث عن الـ patient_id المرتبط بالرقم القومي
+                # 1. البحث عن الـ patient_id المرتبط بالرقم القومي (هذا الجزء ضروري للربط)
                 cur.execute(f"SELECT patient_id FROM workspace.healthcare_platform.patients WHERE national_id = '{national_id}'")
                 result = cur.fetchone()
                 
@@ -162,21 +163,18 @@ def insert_vitals(national_id: str, vitals: dict) -> bool:
                     st.error("❌ Patient not found with this National ID.")
                     return False
                 
-                patient_id = result[0] # استخراج الـ ID الحقيقي من قاعدة البيانات
+                patient_id = result[0] # استخراج الـ ID الصحيح للربط
 
-                # 2. إدخال البيانات باستخدام الـ patient_id المستخرج
-                # ملاحظة: استخدمت هنا Parameterized Query (علامات ?) للأمان
+                # 2. إدخال البيانات (تم حذف national_id من الأعمدة والقيم لأن الجدول لا يدعمه)
                 sql = """
                     INSERT INTO workspace.healthcare_platform.vitals
-                        (vital_id, patient_id, national_id, recorded_at,
-                         systolic_bp, diastolic_bp, heart_rate,
-                         temperature_c, spo2_pct, weight_kg, source_system)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (vital_id, patient_id, recorded_at, systolic_bp, diastolic_bp, 
+                         heart_rate, temperature_c, spo2_pct, weight_kg, source_system)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 cur.execute(sql, (
                     str(uuid.uuid4()),
                     patient_id,
-                    national_id,
                     datetime.now(timezone.utc).isoformat(),
                     vitals['systolic_bp'],
                     vitals['diastolic_bp'],
