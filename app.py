@@ -1059,19 +1059,17 @@ elif st.session_state.role == "doctor":
 
     # ── Tab 2: Patient Vitals Drill-Down ───────────────────────────────────────
     with tab_vitals_drill:
-        # 1. جلب بيانات المرضى (تأكد أن الدالة تجلب national_id أيضاً)
-        df = load_doctor_dashboard() 
+        df = load_doctor_dashboard() # الآن هذا الـ DataFrame يحتوي على national_id
 
-        if not df.empty:
-            # 2. تغييرselectbox ليعتمد على national_id
+        if not df.empty and "national_id" in df.columns:
             selected_nid = st.selectbox(
                 "Select a patient by National ID:",
                 options=df["national_id"].unique().tolist(),
-                format_func=lambda nid: f"{df[df['national_id'] == nid]['first_name'].values[0]} {df[df['national_id'] == nid]['last_name'].values[0]} ({nid})"
+                format_func=lambda nid: f"{df[df['national_id'] == nid]['full_name'].values[0]} ({nid})"
             )
 
             if selected_nid:
-                # 3. استدعاء دالة load_vitals_timeseries المحدثة التي تقبل national_id
+                # استدعاء دالة البيانات مع الرقم القومي المختار
                 vitals_df = load_vitals_timeseries(selected_nid)
 
                 if vitals_df.empty:
