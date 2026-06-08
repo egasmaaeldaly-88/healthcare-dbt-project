@@ -1413,7 +1413,6 @@ elif st.session_state.role == "doctor":
                 )
     df_patients = load_all_patients()                
     with tab_surgeries:
-        st.subheader("🩻 Surgery Records")
         
         # نموذج إدخال بيانات المريض والعملية
         # داخل tab_surgeries في app.py

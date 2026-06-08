@@ -504,21 +504,22 @@ def insert_surgery(national_id, surgery_data, file_path):
         
         with get_connection() as conn:
             with conn.cursor() as cur:
+                # تأكد من استخدام الأعمدة الموجودة فعلياً في الجدول
                 sql = """
                     INSERT INTO workspace.healthcare_platform.surgeries (
-                        national_id, patient_name, surgery_name, surgery_date, 
+                        national_id, surgery_name, surgery_date, 
                         surgeon_name, notes, file_path
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?)
                 """
+                # لاحظ أننا حذفنا 'patient_name' لأن الجدول لا يعرفه
                 cur.execute(sql, (
                     national_id,
-                    p_name,
-                    surgery_data.get('surgery_name', 'N/A'),
-                    surgery_data.get('surgery_date', str(datetime.now().date())),
-                    surgery_data.get('surgeon_name', 'N/A'),
-                    surgery_data.get('notes', ''),
+                    surgery_data['surgery_name'],
+                    surgery_data['surgery_date'],
+                    surgery_data['surgeon_name'],
+                    surgery_data['notes'],
                     file_path
-                ))
+))
         return True
     except Exception as e:
         st.error(f"❌ Error inserting into database: {e}")
