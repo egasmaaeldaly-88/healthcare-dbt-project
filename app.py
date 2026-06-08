@@ -1062,36 +1062,36 @@ elif st.session_state.role == "doctor":
 
     # ── Tab 2: Patient Vitals Drill-Down ───────────────────────────────────────
     with tab_vitals_drill:
-    # 1. جلب بيانات المرضى (تأكد أن الدالة تجلب national_id أيضاً)
-    df = load_doctor_dashboard() 
+        # 1. جلب بيانات المرضى (تأكد أن الدالة تجلب national_id أيضاً)
+        df = load_doctor_dashboard() 
 
-    if not df.empty:
-        # 2. تغييرselectbox ليعتمد على national_id
-        selected_nid = st.selectbox(
-            "Select a patient by National ID:",
-            options=df["national_id"].unique().tolist(),
-            format_func=lambda nid: f"{df[df['national_id'] == nid]['first_name'].values[0]} {df[df['national_id'] == nid]['last_name'].values[0]} ({nid})"
-        )
+        if not df.empty:
+            # 2. تغييرselectbox ليعتمد على national_id
+            selected_nid = st.selectbox(
+                "Select a patient by National ID:",
+                options=df["national_id"].unique().tolist(),
+                format_func=lambda nid: f"{df[df['national_id'] == nid]['first_name'].values[0]} {df[df['national_id'] == nid]['last_name'].values[0]} ({nid})"
+            )
 
-        if selected_nid:
-            # 3. استدعاء دالة load_vitals_timeseries المحدثة التي تقبل national_id
-            vitals_df = load_vitals_timeseries(selected_nid)
+            if selected_nid:
+                # 3. استدعاء دالة load_vitals_timeseries المحدثة التي تقبل national_id
+                vitals_df = load_vitals_timeseries(selected_nid)
 
-            if vitals_df.empty:
-                st.info("No vitals recorded for this patient.")
-            else:
-                # 4. عرض الرسوم البيانية (الكود الخاص بـ Plotly يبقى كما هو)
-                fig_bp = go.Figure()
-                fig_bp.add_trace(go.Scatter(
-                    x=vitals_df["recorded_at"], y=vitals_df["systolic_bp"],
-                    name="Systolic", line=dict(color="#E24B4A", width=2)
-                ))
-                fig_bp.add_trace(go.Scatter(
-                    x=vitals_df["recorded_at"], y=vitals_df["diastolic_bp"],
-                    name="Diastolic", line=dict(color="#378ADD", width=2)
-                ))
-                fig_bp.update_layout(title="Blood Pressure Over Time", margin=dict(t=40, b=20))
-                st.plotly_chart(fig_bp, use_container_width=True)
+                if vitals_df.empty:
+                    st.info("No vitals recorded for this patient.")
+                else:
+                    # 4. عرض الرسوم البيانية (الكود الخاص بـ Plotly يبقى كما هو)
+                    fig_bp = go.Figure()
+                    fig_bp.add_trace(go.Scatter(
+                        x=vitals_df["recorded_at"], y=vitals_df["systolic_bp"],
+                        name="Systolic", line=dict(color="#E24B4A", width=2)
+                    ))
+                    fig_bp.add_trace(go.Scatter(
+                        x=vitals_df["recorded_at"], y=vitals_df["diastolic_bp"],
+                        name="Diastolic", line=dict(color="#378ADD", width=2)
+                    ))
+                    fig_bp.update_layout(title="Blood Pressure Over Time", margin=dict(t=40, b=20))
+                    st.plotly_chart(fig_bp, use_container_width=True)
 
                 # باقي كود الرسم البياني (SpO2 و Heart Rate)...
     # ── Tab 3: Prescribe Medication ─────────────────────────────────────────────
