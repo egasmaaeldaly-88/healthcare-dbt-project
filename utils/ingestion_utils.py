@@ -495,30 +495,35 @@ def merge_csv_to_patients(source_name: str = "patients_csv") -> int:
 
 
 def insert_surgery(national_id, surgery_data, file_path):
+    """
+    إدخال بيانات الجراحة بأمان في Databricks باستخدام Parameterized Query.
+    """
     try:
-        # إضافة اسم المريض إذا كان موجوداً في الـ dict
+        # تأكد من استخدام get() لتجنب KeyError
         p_name = surgery_data.get('patient_name', 'Unknown')
         
         with get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"""
+                sql = """
                     INSERT INTO workspace.healthcare_platform.surgeries (
                         national_id, patient_name, surgery_name, surgery_date, 
                         surgeon_name, notes, file_path
-                    ) VALUES (
-                        '{national_id}',
-                        '{p_name}',
-                        '{surgery_data['surgery_name']}',
-                        '{surgery_data['surgery_date']}',
-                        '{surgery_data['surgeon_name']}',
-                        '{surgery_data['notes']}',
-                        '{file_path if file_path else 'NULL'}'
-                    )
-                """)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """
+                cur.execute(sql, (
+                    national_id,
+                    p_name,
+                    surgery_data.get('surgery_name', 'N/A'),
+                    surgery_data.get('surgery_date', str(datetime.now().date())),
+                    surgery_data.get('surgeon_name', 'N/A'),
+                    surgery_data.get('notes', ''),
+                    file_path
+                ))
         return True
     except Exception as e:
-        print(f"Error inserting: {e}")
+        st.error(f"❌ Error inserting into database: {e}")
         return False
+    
 @st.cache_data(ttl=60)
 def load_all_patients():
     """جلب قائمة المرضى مع دمج الاسم الأول والأخير"""

@@ -1412,58 +1412,51 @@ elif st.session_state.role == "doctor":
                     hide_index=True
                 )
     df_patients = load_all_patients()                
-   
-
     with tab_surgeries:
         st.subheader("🩻 Surgery Records")
         
         # نموذج إدخال بيانات المريض والعملية
+        # داخل tab_surgeries في app.py
+        st.subheader("🩻 Surgery Records")
+        
         with st.form("surgery_manual_form", clear_on_submit=True):
-            st.markdown("### 👤 Patient Information")
-            # حقول إدخال يدوية
             patient_name = st.text_input("Patient Full Name:")
             patient_nid = st.text_input("Patient National ID:")
-            
-            st.markdown("### 🏥 Surgery Details")
             surgery_name = st.text_input("Surgery Name:")
             surgery_date = st.date_input("Date of Surgery:")
             surgeon_name = st.text_input("Surgeon Name:")
             notes = st.text_area("Notes:")
-            uploaded_report = st.file_uploader("Upload Surgery Report", type=['pdf', 'jpg', 'png'])
+            uploaded_report = st.file_uploader("Upload Report", type=['pdf', 'jpg', 'png'])
             
             submit_surgery = st.form_submit_button("🚀 Save Surgery Record", type="primary")
 
-        # معالجة البيانات بعد الضغط
         if submit_surgery:
-            if not patient_name or not patient_nid:
-                st.error("❌ Please enter both Patient Name and National ID.")
-            elif len(patient_nid) != 14:
-                st.error("❌ National ID must be exactly 14 digits.")
+            if len(patient_nid) != 14:
+                st.error("❌ National ID must be 14 digits.")
             else:
-                # منطق حفظ الملف
+                # منطق حفظ الملف (إذا وجد)
                 file_path = None
                 if uploaded_report:
                     file_path = f"/Volumes/workspace/healthcare_platform/my_model_storage/{uploaded_report.name}"
                     with open(file_path, "wb") as f:
                         f.write(uploaded_report.getbuffer())
                 
-                # تجهيز بيانات الجراحة
                 surgery_data = {
+                    "patient_name": patient_name,
                     "surgery_name": surgery_name,
                     "surgery_date": str(surgery_date),
                     "surgeon_name": surgeon_name,
-                    "notes": notes,
-                    "patient_name": patient_name # أضفنا اسم المريض هنا للتوثيق
+                    "notes": notes
                 }
                 
-                # حفظ في القاعدة
-                with st.spinner("Saving..."):
-                    # تمرير الرقم القومي للربط
+                with st.spinner("Saving data..."):
                     success = insert_surgery(patient_nid, surgery_data, file_path)
                 
                 if success:
-                    st.success(f"✅ Surgery record saved for {patient_name} (ID: {patient_nid})")
+                    st.success("✅ Surgery record saved successfully!")
                     st.balloons()
+                    # استدعاء إعادة تحميل الصفحة لعرض البيانات الجديدة
+                    st.rerun()
      # ── Tab 8: Patient history View ────────────────────────────────────────             
 
     with tab_history:
