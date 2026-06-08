@@ -310,7 +310,7 @@ if st.session_state.role == "patient":
         "📋 Submit Vitals",
         "🆕 Register",
         "📤 Bulk Upload",
-        "🔬 My Diagnostics",
+        "🔬 My Diagnostics"
         
     ])
 
