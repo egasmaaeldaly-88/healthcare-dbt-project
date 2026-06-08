@@ -153,35 +153,54 @@ def patient_exists(patient_id: str) -> bool:
         st.error(f"Connection error: {e}")
         return False
 
-def insert_vitals(patient_id: str, vitals: dict) -> bool:
+def insert_vitals(national_id: str, vitals: dict) -> bool:
     try:
+        import uuid
+        from datetime import datetime, timezone
+
         with get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"""
+                # 1. البحث عن الـ patient_id المرتبط بالرقم القومي
+                cur.execute(f"SELECT patient_id FROM workspace.healthcare_platform.patients WHERE national_id = '{national_id}'")
+                result = cur.fetchone()
+                
+                if not result:
+                    st.error("❌ Patient not found with this National ID.")
+                    return False
+                
+                patient_id = result[0] # استخراج الـ ID الحقيقي من قاعدة البيانات
+
+                # 2. إدخال البيانات باستخدام الـ patient_id المستخرج
+                # ملاحظة: استخدمت هنا Parameterized Query (علامات ?) للأمان
+                sql = """
                     INSERT INTO workspace.healthcare_platform.vitals
-                        (vital_id, patient_id, recorded_at,
+                        (vital_id, patient_id, national_id, recorded_at,
                          systolic_bp, diastolic_bp, heart_rate,
-                         temperature_c, spo2_pct, weight_kg,
-                         source_system)
-                    VALUES (
-                        '{str(uuid.uuid4())}',
-                        '{patient_id}',
-                        '{datetime.now(timezone.utc).isoformat()}',
-                        {vitals['systolic_bp']},
-                        {vitals['diastolic_bp']},
-                        {vitals['heart_rate']},
-                        {vitals['temperature_c']},
-                        {vitals['spo2_pct']},
-                        {vitals['weight_kg']},
-                        'streamlit_patient_portal'
-                    )
-                """)
-        load_vitals_timeseries.clear()
+                         temperature_c, spo2_pct, weight_kg, source_system)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                cur.execute(sql, (
+                    str(uuid.uuid4()),
+                    patient_id,
+                    national_id,
+                    datetime.now(timezone.utc).isoformat(),
+                    vitals['systolic_bp'],
+                    vitals['diastolic_bp'],
+                    vitals['heart_rate'],
+                    vitals['temperature_c'],
+                    vitals['spo2_pct'],
+                    vitals['weight_kg'],
+                    'streamlit_patient_portal'
+                ))
+        
+        # تنظيف الكاش لتحديث الرسوم البيانية
+        if 'load_vitals_timeseries' in globals():
+            load_vitals_timeseries.clear()
+            
         return True
     except Exception as e:
         st.error(f"Insert failed: {e}")
         return False
-
 def insert_medication(patient_id: str, med_data: dict) -> bool:
     try:
         with get_connection() as conn:
