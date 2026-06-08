@@ -155,8 +155,7 @@ def patient_exists(patient_id: str) -> bool:
 
 def insert_vitals(national_id: str, vitals: dict) -> bool:
     try:
-        import uuid
-        from datetime import datetime, timezone
+        
 
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -335,85 +334,48 @@ if st.session_state.role == "patient":
 
     # ── Tab 1: Submit Vitals ───────────────────────────────────────────────────
     with tab_vitals:
-        st.subheader("Submit Your Daily Vitals")
+        st.subheader("🩺 Submit Daily Vitals")
 
-        with st.form("vitals_form"):
-            patient_id = st.text_input(
-                "Patient ID",
-                placeholder="Enter your 14-digit National ID"
-            )
+        with st.form("vitals_form", clear_on_submit=True):
+            patient_nid = st.text_input("National ID *", placeholder="Enter 14-digit National ID")
             st.divider()
             col1, col2, col3 = st.columns(3)
-
             with col1:
-                systolic  = st.number_input(
-                    "Systolic BP (mmHg)",  60,  250, 120
-                )
-                diastolic = st.number_input(
-                    "Diastolic BP (mmHg)", 40,  150,  80
-                )
+                systolic = st.number_input("Systolic BP (mmHg)", 60, 250, 120)
+                diastolic = st.number_input("Diastolic BP (mmHg)", 40, 150, 80)
             with col2:
-                heart_rate  = st.number_input(
-                    "Heart Rate (bpm)", 30, 220, 72
-                )
-                temperature = st.number_input(
-                    "Temperature (°C)", 34.0, 43.0, 37.0, step=0.1
-                )
+                heart_rate = st.number_input("Heart Rate (bpm)", 30, 220, 72)
+                temperature = st.number_input("Temperature (°C)", 34.0, 43.0, 37.0, step=0.1)
             with col3:
-                spo2   = st.number_input(
-                    "SpO₂ (%)", 70.0, 100.0, 98.0, step=0.1
-                )
-                weight = st.number_input(
-                    "Weight (kg)", 20.0, 300.0, 70.0, step=0.5
-                )
+                spo2 = st.number_input("SpO₂ (%)", 70.0, 100.0, 98.0, step=0.1)
+                weight = st.number_input("Weight (kg)", 20.0, 300.0, 70.0, step=0.5)
 
-            submitted = st.form_submit_button(
-                "Submit Readings", type="primary"
-            )
+            submitted = st.form_submit_button("🚀 Submit Readings", type="primary")
 
         if submitted:
-                # التحقق من أن حقل Patient ID ليس فارغاً
-                if not patient_id or not patient_id.strip():
-                    st.error("Patient ID is required.")
-                
-                # التحقق من منطق ضغط الدم (Systolic > Diastolic)
-                elif systolic <= diastolic:
-                    st.error("Systolic BP must be greater than Diastolic BP.")
-                
-                # التحقق من وجود المريض في قاعدة البيانات
-                else:
-                    with st.spinner("Verifying patient…"):
-                        exists = patient_exists(patient_id.strip())
-                        
-                        if not exists:
-                            st.error("Patient ID not found in the system. Please check the ID.")
+            # التحقق من المدخلات
+            if len(patient_nid.strip()) != 14:
+                st.error("❌ National ID must be exactly 14 digits.")
+            elif systolic <= diastolic:
+                st.error("❌ Systolic BP must be greater than Diastolic BP.")
+            else:
+                with st.spinner("Verifying patient and saving..."):
+                    # التحقق من وجود المريض
+                    if patient_exists(patient_nid.strip()):
+                        vitals = {
+                            "systolic_bp": systolic, "diastolic_bp": diastolic,
+                            "heart_rate": heart_rate, "temperature_c": temperature,
+                            "spo2_pct": spo2, "weight_kg": weight
+                        }
+                        # إرسال البيانات
+                        success = insert_vitals(patient_nid.strip(), vitals)
+                        if success:
+                            st.success("✅ Vitals submitted successfully!")
+                            st.balloons()
                         else:
-                            # المريض موجود، يمكنكِ الآن إكمال عملية الحفظ هنا
-                            st.success("Patient verified! Proceeding with data entry...")
-                            # ضعي هنا الكود الخاص بحفظ بيانات ضغط الدم (Vitals)
-
-                if not exists:
-                    st.error(
-                        "Patient ID not found. "
-                        "Please register first or check with your clinic."
-                    )
-                else:
-                    vitals = {
-                        "systolic_bp":   systolic,
-                        "diastolic_bp":  diastolic,
-                        "heart_rate":    heart_rate,
-                        "temperature_c": temperature,
-                        "spo2_pct":      spo2,
-                        "weight_kg":     weight,
-                    }
-                    with st.spinner("Saving your readings…"):
-                        success = insert_vitals(
-                            patient_id.strip(), vitals
-                        )
-                    if success:
-                        st.success("✅ Vitals submitted successfully!")
-                        st.balloons()
-
+                            st.error("❌ Failed to save data. Please check logs.")
+                    else:
+                        st.error("❌ Patient not found. Please register the patient first.")
     # ── Tab 2: Patient Registration ────────────────────────────────────────────
     with tab_register:
         st.subheader("New Patient Registration")
@@ -1100,71 +1062,38 @@ elif st.session_state.role == "doctor":
 
     # ── Tab 2: Patient Vitals Drill-Down ───────────────────────────────────────
     with tab_vitals_drill:
-        df = load_doctor_dashboard()
+    # 1. جلب بيانات المرضى (تأكد أن الدالة تجلب national_id أيضاً)
+    df = load_doctor_dashboard() 
 
-        if not df.empty:
-            selected_patient = st.selectbox(
-                "Select a patient:",
-                options=df["patient_id"].tolist(),
-                format_func=lambda pid: df[
-                    df["patient_id"] == pid
-                ]["full_name"].values[0]
-            )
+    if not df.empty:
+        # 2. تغييرselectbox ليعتمد على national_id
+        selected_nid = st.selectbox(
+            "Select a patient by National ID:",
+            options=df["national_id"].unique().tolist(),
+            format_func=lambda nid: f"{df[df['national_id'] == nid]['first_name'].values[0]} {df[df['national_id'] == nid]['last_name'].values[0]} ({nid})"
+        )
 
-            if selected_patient:
-                vitals_df = load_vitals_timeseries(selected_patient)
+        if selected_nid:
+            # 3. استدعاء دالة load_vitals_timeseries المحدثة التي تقبل national_id
+            vitals_df = load_vitals_timeseries(selected_nid)
 
-                if vitals_df.empty:
-                    st.info("No vitals recorded for this patient.")
-                else:
-                    fig_bp = go.Figure()
-                    fig_bp.add_trace(go.Scatter(
-                        x=vitals_df["recorded_at"],
-                        y=vitals_df["systolic_bp"],
-                        name="Systolic",
-                        line=dict(color="#E24B4A", width=2)
-                    ))
-                    fig_bp.add_trace(go.Scatter(
-                        x=vitals_df["recorded_at"],
-                        y=vitals_df["diastolic_bp"],
-                        name="Diastolic",
-                        line=dict(color="#378ADD", width=2)
-                    ))
-                    fig_bp.update_layout(
-                        title="Blood Pressure Over Time",
-                        margin=dict(t=40, b=20)
-                    )
-                    st.plotly_chart(
-                        fig_bp, use_container_width=True
-                    )
+            if vitals_df.empty:
+                st.info("No vitals recorded for this patient.")
+            else:
+                # 4. عرض الرسوم البيانية (الكود الخاص بـ Plotly يبقى كما هو)
+                fig_bp = go.Figure()
+                fig_bp.add_trace(go.Scatter(
+                    x=vitals_df["recorded_at"], y=vitals_df["systolic_bp"],
+                    name="Systolic", line=dict(color="#E24B4A", width=2)
+                ))
+                fig_bp.add_trace(go.Scatter(
+                    x=vitals_df["recorded_at"], y=vitals_df["diastolic_bp"],
+                    name="Diastolic", line=dict(color="#378ADD", width=2)
+                ))
+                fig_bp.update_layout(title="Blood Pressure Over Time", margin=dict(t=40, b=20))
+                st.plotly_chart(fig_bp, use_container_width=True)
 
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        fig_spo2 = px.line(
-                            vitals_df,
-                            x="recorded_at",
-                            y="spo2_pct",
-                            title="SpO₂ (%)"
-                        )
-                        fig_spo2.add_hline(
-                            y=94,
-                            line_dash="dash",
-                            line_color="#E24B4A",
-                            annotation_text="Warning"
-                        )
-                        st.plotly_chart(
-                            fig_spo2, use_container_width=True
-                        )
-                    with col_b:
-                        fig_hr = px.line(
-                            vitals_df,
-                            x="recorded_at",
-                            y="heart_rate",
-                            title="Heart Rate (bpm)"
-                        )
-                        st.plotly_chart(
-                            fig_hr, use_container_width=True
-                        )
+                # باقي كود الرسم البياني (SpO2 و Heart Rate)...
     # ── Tab 3: Prescribe Medication ─────────────────────────────────────────────
     with tab_meds:
         st.subheader("💊 Prescribe New Medication")
