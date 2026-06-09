@@ -42,39 +42,37 @@ def get_connection():
     return sql.connect(**connect_args)
 
 
-# ── Metadata loader ────────────────────────────────────────────────────────────
-@st.cache_data(ttl=120, show_spinner=False)
+
+@st.cache_data(ttl=10, show_spinner=False) # خفضنا الـ ttl إلى 10 ثوانٍ للتجربة
 def load_source_config(source_name: str) -> dict:
-    """Load one source config row from metadata_config."""
+    """Load one source config row from metadata_config using safe parameters."""
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(f"""
+            # استخدام الفاصلة (؟) لتجنب SQL Injection
+            cur.execute("""
                 SELECT * FROM workspace.healthcare_platform.metadata_config
-                WHERE source_name = '{source_name}'
+                WHERE source_name = %s 
                   AND is_active = true
-            """)
+            """, (source_name,))
+            
             rows = cur.fetchall()
             cols = [d[0] for d in cur.description]
 
     if not rows:
-        raise ValueError(f"Source '{source_name}' not found or inactive.")
+        return {} # إرجاع قاموس فارغ بدلاً من إيقاف البرنامج بالكامل
 
     config = dict(zip(cols, rows[0]))
 
-    for json_col in ["expected_columns", "optional_columns",
-                     "coalesce_fields", "column_mapping"]:
+    # معالجة حقول JSON
+    json_fields = ["expected_columns", "optional_columns", "coalesce_fields", "column_mapping"]
+    for json_col in json_fields:
         raw = config.get(json_col)
-        if raw:
-            try:
-                config[json_col] = json.loads(raw)
-            except Exception:
-                config[json_col] = [] if json_col != "column_mapping" else {}
-        else:
+        try:
+            config[json_col] = json.loads(raw) if raw else ([] if json_col != "column_mapping" else {})
+        except:
             config[json_col] = [] if json_col != "column_mapping" else {}
 
     return config
-
-
 # ── National ID validator (single value) ──────────────────────────────────────
 def validate_national_id(value: str, length: int = 14) -> tuple[bool, str]:
     """
